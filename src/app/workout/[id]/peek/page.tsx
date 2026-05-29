@@ -4,9 +4,9 @@ import { PhoneFrame } from "@/components/PhoneFrame";
 import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { WorkoutTimer } from "@/components/WorkoutTimer";
-import { SetList } from "@/components/SetList";
+import { WorkoutClient } from "@/components/WorkoutClient";
 import { getCurrentProfile } from "@/lib/auth/current-user";
-import { getWorkout, getWorkoutSets } from "@/lib/db/queries";
+import { getWorkout, getWorkoutBlocks, getWorkoutSets } from "@/lib/db/queries";
 
 export default async function PeekPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -16,7 +16,7 @@ export default async function PeekPage({ params }: { params: Promise<{ id: strin
   const workout = await getWorkout(id);
   if (!workout) redirect("/");
 
-  const sets = await getWorkoutSets(id);
+  const [blocks, sets] = await Promise.all([getWorkoutBlocks(id), getWorkoutSets(id)]);
   const name = workout.profile?.display_name ?? workout.profile?.email ?? "they";
   const title = workout.title ?? workout.class?.name ?? "session";
 
@@ -41,11 +41,9 @@ export default async function PeekPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <SetList workoutId={workout.id} initial={sets} canEdit={false} />
+      <WorkoutClient workoutId={workout.id} blocks={blocks} sets={sets} editable={false} />
 
-      <Link href="/" className="sticker-btn d4">
-        ← back to home
-      </Link>
+      <Link href="/" className="sticker-btn d4">← back to home</Link>
 
       <BottomNav active="home" />
     </PhoneFrame>

@@ -30,9 +30,18 @@ export type FFClass = {
 export type Exercise = {
   id: UUID;
   name: string;
+  slug: string | null;
   category: string | null;
   primary_muscle: string | null;
+  primary_muscles: string[];
+  secondary_muscles: string[];
   equipment: string | null;
+  force: string | null;
+  level: string | null;
+  mechanic: string | null;
+  instructions: string[];
+  image_urls: string[];
+  is_custom: boolean;
   created_at: string;
 };
 
@@ -56,9 +65,19 @@ export type Workout = {
   created_at: string;
 };
 
+export type WorkoutExercise = {
+  id: UUID;
+  workout_id: UUID;
+  exercise_id: UUID | null;
+  exercise_name: string;
+  order_index: number;
+  created_at: string;
+};
+
 export type WorkoutSet = {
   id: UUID;
   workout_id: UUID;
+  workout_exercise_id: UUID | null;
   exercise_id: UUID | null;
   exercise_name: string;
   set_index: number;

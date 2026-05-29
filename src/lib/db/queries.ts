@@ -98,6 +98,26 @@ export async function getWorkoutSets(workoutId: UUID): Promise<WorkoutSet[]> {
   return (data as WorkoutSet[]) ?? [];
 }
 
+export type BlockRow = {
+  id: UUID;
+  workout_id: UUID;
+  exercise_id: UUID | null;
+  exercise_name: string;
+  order_index: number;
+  exercise: { image_urls: string[]; primary_muscle: string | null; equipment: string | null } | null;
+};
+
+export async function getWorkoutBlocks(workoutId: UUID): Promise<BlockRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("workout_exercises")
+    .select("*, exercise:exercises ( image_urls, primary_muscle, equipment )")
+    .eq("workout_id", workoutId)
+    .order("order_index", { ascending: true });
+  if (error) throw error;
+  return (data as BlockRow[]) ?? [];
+}
+
 export async function getLocations(): Promise<FFLocation[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

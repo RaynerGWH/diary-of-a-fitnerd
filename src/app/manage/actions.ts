@@ -3,6 +3,32 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseSchedule } from "@/lib/schedule-parser";
+import { mapDatasetEntry, type DatasetExercise } from "@/lib/exercises/catalog";
+import datasetRaw from "@/data/exercises.json";
+
+export type ImportResult = { imported: number; error: string | null };
+
+export async function importExerciseLibrary(): Promise<ImportResult> {
+  const supabase = await createClient();
+  const dataset = datasetRaw as unknown as DatasetExercise[];
+  const rows = dataset.map(mapDatasetEntry);
+
+  let imported = 0;
+  const BATCH = 200;
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const chunk = rows.slice(i, i + BATCH);
+    const { error } = await supabase
+      .from("exercises")
+      .upsert(chunk, { onConflict: "slug", ignoreDuplicates: false });
+    if (error) {
+      return { imported, error: error.message };
+    }
+    imported += chunk.length;
+  }
+
+  revalidatePath("/manage");
+  return { imported, error: null };
+}
 
 export async function addLocation(formData: FormData) {
   const name = ((formData.get("name") as string) ?? "").trim();
@@ -26,7 +52,14 @@ export async function addExercise(formData: FormData) {
   const equipment = ((formData.get("equipment") as string) ?? "").trim() || null;
   if (!name) return;
   const supabase = await createClient();
-  await supabase.from("exercises").insert({ name, category, primary_muscle, equipment });
+  await supabase.from("exercises").insert({
+    name,
+    category,
+    primary_muscle,
+    primary_muscles: primary_muscle ? [primary_muscle] : [],
+    equipment,
+    is_custom: true,
+  });
   revalidatePath("/manage");
 }
 
