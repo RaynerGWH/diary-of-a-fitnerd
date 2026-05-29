@@ -1,7 +1,7 @@
 # Exercise Library + Tap-to-Log — design
 
 **Date:** 2026-05-29
-**Status:** Approved, implementing
+**Status:** Implemented (code complete; awaiting user's Supabase migration + library import)
 **App:** Fitnerds! (private 2-user fitness app; Next.js 15 + Supabase)
 
 ## Context

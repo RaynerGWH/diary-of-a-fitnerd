@@ -12,6 +12,7 @@ import {
   deleteLocation,
   pasteSchedule,
 } from "./actions";
+import { ImportLibraryButton } from "./ImportLibraryButton";
 import type { Exercise, FFClass, FFLocation } from "@/lib/db/types";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -21,15 +22,18 @@ export default async function ManagePage() {
   if (!profile) redirect("/login");
 
   const supabase = await createClient();
-  const [{ data: locs }, { data: classes }, { data: exercises }] = await Promise.all([
-    supabase.from("ff_locations").select("*").order("name"),
-    supabase.from("ff_classes").select("*").order("day_of_week").order("start_time"),
-    supabase.from("exercises").select("*").order("name"),
-  ]);
+  const [{ data: locs }, { data: classes }, { count: exerciseCount }, { data: customEx }] =
+    await Promise.all([
+      supabase.from("ff_locations").select("*").order("name"),
+      supabase.from("ff_classes").select("*").order("day_of_week").order("start_time"),
+      supabase.from("exercises").select("*", { count: "exact", head: true }),
+      supabase.from("exercises").select("*").eq("is_custom", true).order("name"),
+    ]);
 
   const locations = (locs as FFLocation[]) ?? [];
   const klasses = (classes as FFClass[]) ?? [];
-  const exs = (exercises as Exercise[]) ?? [];
+  const customExercises = (customEx as Exercise[]) ?? [];
+  const totalExercises = exerciseCount ?? 0;
 
   return (
     <PhoneFrame>
@@ -103,17 +107,27 @@ export default async function ManagePage() {
       </div>
 
       <div className="card alt d4">
-        <div className="font-bold text-[18px]">exercises</div>
+        <div className="font-bold text-[18px]">exercise library</div>
+        <div className="text-[13px] text-[color:var(--muted)] mt-1">
+          {totalExercises} exercises loaded
+          {customExercises.length > 0 ? ` · ${customExercises.length} custom` : ""}.
+          One-tap import of the full public-domain library (with images).
+        </div>
+        <div className="mt-3">
+          <ImportLibraryButton alreadyLoaded={totalExercises > 100} />
+        </div>
+
+        <div className="font-bold text-[15px] mt-4">add a custom exercise</div>
         <form action={addExercise} className="mt-2 grid grid-cols-2 gap-2">
-          <input className="field" name="name" placeholder="name (bench press)" required />
-          <input className="field" name="category" placeholder="push / pull / legs / core / cardio" />
+          <input className="field" name="name" placeholder="name (cable face pull)" required />
+          <input className="field" name="category" placeholder="strength / cardio..." />
           <input className="field" name="primary_muscle" placeholder="chest, quads..." />
           <input className="field" name="equipment" placeholder="barbell, db, machine..." />
-          <button className="sticker-btn col-span-2" type="submit">add exercise</button>
+          <button className="sticker-btn col-span-2" type="submit">add custom exercise</button>
         </form>
-        {exs.length > 0 && (
+        {customExercises.length > 0 && (
           <div className="mt-3 flex flex-col gap-1">
-            {exs.map((e) => (
+            {customExercises.map((e) => (
               <form key={e.id} action={deleteExercise} className="flex items-center justify-between text-[13.5px]">
                 <input type="hidden" name="id" value={e.id} />
                 <span>

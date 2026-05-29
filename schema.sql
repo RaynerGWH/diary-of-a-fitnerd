@@ -67,12 +67,21 @@ create table if not exists public.ff_classes (
 );
 
 create table if not exists public.exercises (
-  id             uuid primary key default gen_random_uuid(),
-  name           text not null unique,
-  category       text,          -- push | pull | legs | core | cardio (content feature)
-  primary_muscle text,
-  equipment      text,
-  created_at     timestamptz not null default now()
+  id                uuid primary key default gen_random_uuid(),
+  name              text not null unique,
+  slug              text unique,          -- stable import key (free-exercise-db id)
+  category          text,                 -- strength | cardio | stretching | ...  (content feature)
+  primary_muscle    text,                 -- first primary muscle (back-compat)
+  primary_muscles   text[] not null default '{}',
+  secondary_muscles text[] not null default '{}',
+  equipment         text,
+  force             text,                 -- push | pull | static
+  level             text,                 -- beginner | intermediate | expert
+  mechanic          text,                 -- compound | isolation
+  instructions      text[] not null default '{}',
+  image_urls        text[] not null default '{}',
+  is_custom         boolean not null default false,
+  created_at        timestamptz not null default now()
 );
 
 -- ------------------------------------------------------------
@@ -101,18 +110,32 @@ create index if not exists workouts_user_started_idx on public.workouts (user_id
 -- fast lookup of who is training right now (live status):
 create index if not exists workouts_active_idx on public.workouts (status) where status = 'active';
 
-create table if not exists public.workout_sets (
+-- one row per exercise added to a session (the "block"); sets hang off it
+create table if not exists public.workout_exercises (
   id            uuid primary key default gen_random_uuid(),
   workout_id    uuid not null references public.workouts(id) on delete cascade,
   exercise_id   uuid references public.exercises(id),
-  exercise_name text not null,        -- denormalised so freeform sets still log
-  set_index     int  not null default 1,
-  reps          int,
-  weight        numeric(6,2),
-  rpe           smallint,             -- optional per-set effort, nice for recs later
-  logged_at     timestamptz not null default now()
+  exercise_name text not null,
+  order_index   int  not null default 0,
+  created_at    timestamptz not null default now()
+);
+create index if not exists workout_exercises_workout_idx
+  on public.workout_exercises (workout_id, order_index);
+
+create table if not exists public.workout_sets (
+  id                  uuid primary key default gen_random_uuid(),
+  workout_id          uuid not null references public.workouts(id) on delete cascade,
+  workout_exercise_id uuid references public.workout_exercises(id) on delete cascade,
+  exercise_id         uuid references public.exercises(id),
+  exercise_name       text not null,        -- denormalised so freeform sets still log
+  set_index           int  not null default 1,
+  reps                int,
+  weight              numeric(6,2),
+  rpe                 smallint,             -- optional per-set effort, nice for recs later
+  logged_at           timestamptz not null default now()
 );
 create index if not exists workout_sets_workout_idx on public.workout_sets (workout_id);
+create index if not exists workout_sets_we_idx on public.workout_sets (workout_exercise_id);
 
 -- ------------------------------------------------------------
 -- SURPRISE CARDS (gamified end-of-workout reveal + shared deck)
@@ -175,9 +198,10 @@ alter table public.profiles      enable row level security;
 alter table public.user_prefs    enable row level security;
 alter table public.ff_locations  enable row level security;
 alter table public.ff_classes    enable row level security;
-alter table public.exercises     enable row level security;
-alter table public.workouts      enable row level security;
-alter table public.workout_sets  enable row level security;
+alter table public.exercises         enable row level security;
+alter table public.workouts          enable row level security;
+alter table public.workout_exercises enable row level security;
+alter table public.workout_sets      enable row level security;
 alter table public.card_defs     enable row level security;
 alter table public.user_cards    enable row level security;
 
@@ -210,6 +234,14 @@ create policy "update own workout" on public.workouts for update to authenticate
 create policy "delete own workout" on public.workouts for delete to authenticated
   using (user_id = auth.uid());
 
+-- workout_exercises (blocks): read all, write only if you own the parent workout
+create policy "read workout_exercises" on public.workout_exercises for select to authenticated using (true);
+create policy "write own workout_exercises" on public.workout_exercises for all to authenticated
+  using (exists (select 1 from public.workouts w
+                 where w.id = workout_id and w.user_id = auth.uid()))
+  with check (exists (select 1 from public.workouts w
+                      where w.id = workout_id and w.user_id = auth.uid()));
+
 -- workout_sets: read all, write only if you own the parent workout
 create policy "read sets" on public.workout_sets for select to authenticated using (true);
 create policy "write own sets" on public.workout_sets for all to authenticated
@@ -227,11 +259,13 @@ create policy "write own cards" on public.user_cards for all to authenticated
 -- REALTIME: stream these tables to the clients.
 -- replica identity full so UPDATE/DELETE payloads include old row.
 -- ------------------------------------------------------------
-alter table public.workouts     replica identity full;
-alter table public.workout_sets replica identity full;
+alter table public.workouts          replica identity full;
+alter table public.workout_exercises replica identity full;
+alter table public.workout_sets      replica identity full;
 alter table public.user_cards   replica identity full;
 
 alter publication supabase_realtime add table public.workouts;
+alter publication supabase_realtime add table public.workout_exercises;
 alter publication supabase_realtime add table public.workout_sets;
 alter publication supabase_realtime add table public.user_cards;
 

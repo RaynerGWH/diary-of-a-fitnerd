@@ -279,6 +279,96 @@ body {
 }
 .field:focus { outline: none; box-shadow: 3px 3px 0 var(--ink); }
 
+/* ============================================================
+   Direction C — clean data layout, Fitnerds personality kept.
+   Used by the exercise-block workout screen + picker.
+   ============================================================ */
+
+/* exercise block card */
+.block-card {
+  background: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: 3px 3px 0 var(--ink);
+  padding: 11px 12px;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: rise .5s ease forwards;
+}
+
+.set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.set-table th {
+  text-align: left; font-weight: 600; font-size: 9.5px;
+  color: var(--muted); letter-spacing: .04em; padding: 2px 4px;
+}
+.set-table td { padding: 3px 4px; border-top: 1px solid #eee; }
+.set-table tr:first-child td { border-top: none; }
+
+.add-set-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: center; }
+.add-set-row .field { padding: 7px 8px; font-size: 14px; }
+.add-set-row .sticker-btn { padding: 7px 10px; font-size: 13px; }
+
+.add-exercise-btn {
+  width: 100%;
+  font-family: inherit;
+  font-weight: 800;
+  font-size: 14px;
+  background: var(--rayner);
+  color: #fff;
+  border: 2px solid var(--ink);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--ink);
+  padding: 11px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: rise .5s ease forwards;
+}
+
+/* exercise picker overlay */
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  margin: 0 auto;
+  max-width: 420px;
+  background:
+    radial-gradient(circle at 1px 1px, rgba(32,32,30,.08) 1px, transparent 0) 0 0/22px 22px,
+    var(--cream);
+  border-left: 2.5px solid var(--ink);
+  border-right: 2.5px solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  padding:
+    max(18px, env(safe-area-inset-top)) 16px
+    max(16px, env(safe-area-inset-bottom));
+  overflow: hidden;
+}
+.picker-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
+.picker-row {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 2px solid var(--ink);
+  border-radius: 10px; padding: 7px 9px;
+}
+.picker-thumb {
+  width: 34px; height: 34px; flex: 0 0 auto;
+  border-radius: 8px; border: 1.5px solid var(--ink);
+  object-fit: cover; background: var(--cream);
+}
+.picker-thumb-empty {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-weight: 700; color: var(--rayner);
+  background: var(--rayner-soft);
+}
+.picker-add {
+  width: 26px; height: 26px; flex: 0 0 auto;
+  border-radius: 50%; background: var(--hi);
+  border: 1.5px solid var(--ink);
+  font-weight: 800; font-size: 15px; line-height: 1;
+  cursor: pointer;
+}
+.picker-add:disabled { opacity: .5; }
+
 /* card flip / rarity glow for surprise reveal */
 .reveal-wrap { perspective: 1000px; }
 .reveal {
