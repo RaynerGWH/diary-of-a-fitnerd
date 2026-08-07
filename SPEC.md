@@ -15,7 +15,7 @@ Two files define this project:
 This repo is **open source / public code**. The code, schema, and design are
 free for anyone to read or fork. The actual data — your tasks, notes, RA
 work, expenditure — is **never public**: it lives in your own private
-Supabase project, gated behind magic-link auth + an allow-list + Postgres RLS.
+Supabase project, gated behind email+password auth + an allow-list + Postgres RLS.
 Never commit real entries, real emails, or the `service_role` key.
 
 ## Locked decisions
@@ -49,7 +49,7 @@ Never commit real entries, real emails, or the `service_role` key.
 ## Scope
 
 **v1 (build now)**
-1. Magic-link auth, allow-list gated → `/denied` for anyone else.
+1. Email+password auth, allow-list gated → `/denied` for anyone else. No self-serve sign-up — the one account is created by hand in the Supabase Dashboard.
 2. Today view: open tasks + today's notes/logs + streak/open-count stats.
 3. Capture flow: type → category chip → title/body → (due date | amount) → save.
 4. Entries/timeline: browse everything, filter by category.
