@@ -48,7 +48,6 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Signed in and allowed — bounce away from /login.
   if (isAllowed(user.email) && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
