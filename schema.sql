@@ -1,5 +1,9 @@
 -- ============================================================
 -- Rayner OS: Supabase schema
+-- A personal daily-ops journal: tasks, notes, logs, schedule,
+-- across school / work / RA / gym / diet / expenditure.
+-- Designed so entries can later be exported into a Neo4j knowledge
+-- graph and ingested from outside the app (telegram_inbox).
 -- Paste this into Supabase -> SQL Editor and run.
 -- Sections marked  >>> EDIT  need your real values.
 -- ============================================================
@@ -23,6 +27,11 @@ create table if not exists public.profiles (
 -- category is freeform text (school | work | ra | gym | diet | expenditure |
 -- other) rather than an enum, so new categories never need a migration.
 -- status/due_at apply to tasks only; amount/currency to expenditure entries.
+-- ------------------------------------------------------------
+-- ENTRIES: the atomic unit. A task, a note, a log, or an event.
+-- category is freeform text (school | work | ra | gym | diet |
+-- expenditure | other) so new categories never need a migration.
+-- ------------------------------------------------------------
 create table if not exists public.entries (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references public.profiles(id) on delete cascade,
@@ -45,6 +54,9 @@ create index if not exists entries_open_tasks_idx on public.entries (user_id, du
 
 -- Separate from category: tags are freeform many-to-many, for cross-cutting
 -- labels that don't fit a single category.
+-- ------------------------------------------------------------
+-- TAGS: freeform, many-to-many, orthogonal to category.
+-- ------------------------------------------------------------
 create table if not exists public.tags (
   id       uuid primary key default gen_random_uuid(),
   user_id  uuid not null references public.profiles(id) on delete cascade,
@@ -64,6 +76,18 @@ create table if not exists public.entry_tags (
 
 -- Not wired up yet: exists so the future Telegram bot webhook can be built
 -- without another migration.
+-- ------------------------------------------------------------
+-- Note: no in-Postgres graph-edge table. The real knowledge graph
+-- will live in Neo4j (populated from `entries` + `tags` later, likely
+-- via an extraction pass) rather than manually-drawn links here.
+-- Keeps one source of truth instead of syncing two.
+-- ------------------------------------------------------------
+
+-- ------------------------------------------------------------
+-- TELEGRAM INBOX: raw bot messages land here before (optionally)
+-- becoming an entry. Not wired up yet; table exists so the bot can
+-- be built without another migration.
+-- ------------------------------------------------------------
 create table if not exists public.telegram_inbox (
   id                  uuid primary key default gen_random_uuid(),
   telegram_message_id bigint,
@@ -97,6 +121,11 @@ create trigger on_auth_user_created
 
 -- Everything is private to its owner: no shared-read policies, unlike the
 -- old Fitnerds! schema, since this is a personal journal, not a shared app.
+-- ------------------------------------------------------------
+-- ROW LEVEL SECURITY
+-- Everything is private to its owner. No shared-read policies:
+-- unlike Fitnerds, this is a personal journal, not a shared app.
+-- ------------------------------------------------------------
 alter table public.profiles      enable row level security;
 alter table public.entries       enable row level security;
 alter table public.tags          enable row level security;
@@ -127,6 +156,8 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
 
 -- Deliberately no "authenticated" policy on telegram_inbox: only the
 -- service_role key (bot webhook, server-side only) may touch this table.
+-- telegram_inbox: no client policies. Only the service_role key (bot webhook,
+-- server-side only) touches this table. Deliberately no "authenticated" policy.
 
 -- entries streams over realtime so a future Telegram-bot insert shows up on
 -- the dashboard live, without a manual refresh.

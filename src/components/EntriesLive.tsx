@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-// Refreshes the page whenever `entries` changes — the mechanism that will
+// Refreshes the page whenever `entries` changes. This is the mechanism that will
 // make Telegram-bot captures show up on the dashboard without a manual reload.
 export function EntriesLive({ userId }: { userId: string }) {
   const router = useRouter();

@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Rayner OS",
     short_name: "Rayner OS",
-    description: "tasks, notes, logs — one place instead of scattered pages",
+    description: "tasks, notes, logs: one place instead of scattered pages",
     id: "/",
     start_url: "/",
     scope: "/",

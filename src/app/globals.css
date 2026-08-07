@@ -38,7 +38,7 @@ body {
     max(14px, env(safe-area-inset-left));
 }
 
-/* phone frame — the app lives in this on every page */
+/* phone frame: the app lives in this on every page */
 .phone {
   width: 100%;
   max-width: 392px;
@@ -207,7 +207,7 @@ body {
 .sticker-btn.danger  { background: var(--urgent); color: #fff; }
 .sticker-btn:disabled { opacity: .5; cursor: not-allowed; }
 
-/* capture hero — big tappable "add something" entry point */
+/* capture hero: big tappable "add something" entry point */
 .capture-hero {
   text-align: center;
   background: var(--accent);
