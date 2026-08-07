@@ -16,13 +16,13 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  applicationName: "Fitnerds!",
-  title: "Fitnerds!",
-  description: "Rayner + Ada · stronger together",
+  applicationName: "Rayner OS",
+  title: "Rayner OS",
+  description: "tasks, notes, logs — one place instead of scattered pages",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Fitnerds!",
+    title: "Rayner OS",
     statusBarStyle: "default",
   },
   formatDetection: { telephone: false },

@@ -6,12 +6,11 @@
   --paper: #f0ebe0;
   --cream: #faf7ef;
   --ink: #20201e;
-  --rayner: #2f4fe0;
-  --rayner-soft: #e1e6fd;
-  --ada: #ef5a6b;
-  --ada-soft: #fcdfe2;
+  --accent: #2f4fe0;
+  --accent-soft: #e1e6fd;
+  --urgent: #ef5a6b;
+  --urgent-soft: #fcdfe2;
   --hi: #ffe066;
-  --live: #ff3b30;
   --muted: #8a857a;
   --sketch: 255px 18px 225px 15px/15px 225px 15px 255px;
   --sketch2: 18px 230px 16px 240px/235px 16px 240px 16px;
@@ -94,66 +93,6 @@ body {
 }
 .sub { font-family: var(--font-caveat), 'Caveat', cursive; font-size: 20px; color: var(--muted); margin-top: 2px; }
 
-.you { display: flex; gap: 6px; align-items: center; }
-.dot-i { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink); }
-
-/* live banner */
-.live-card { background: var(--ada-soft); transform: rotate(-1deg); }
-.live-card .row1 { display: flex; align-items: center; gap: 8px; }
-.pulse {
-  width: 13px; height: 13px;
-  border-radius: 50%;
-  background: var(--live);
-  position: relative;
-}
-.pulse::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 50%;
-  border: 2px solid var(--live);
-  animation: ping 1.4s ease-out infinite;
-  opacity: .8;
-}
-@keyframes ping { to { transform: scale(1.9); opacity: 0; } }
-.live-card .who { font-weight: 700; font-size: 19px; color: #b3243a; }
-.live-card .meta { font-size: 14.5px; color: #7c3b44; margin-top: 4px; }
-.live-card .timer { font-weight: 700; font-size: 15px; }
-
-.peek-btn {
-  margin-top: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-family: inherit;
-  font-weight: 700;
-  font-size: 14px;
-  color: #fff;
-  background: var(--ada);
-  border: 2.5px solid var(--ink);
-  border-radius: var(--sketch-pill);
-  padding: 6px 14px;
-  cursor: pointer;
-  box-shadow: 3px 3px 0 var(--ink);
-  text-decoration: none;
-}
-
-/* START hero */
-.start-hero {
-  text-align: center;
-  background: var(--rayner);
-  color: #fff;
-  border-radius: var(--sketch3);
-  padding: 22px 16px;
-  transform: rotate(.6deg);
-  box-shadow: 5px 6px 0 var(--ink);
-  cursor: pointer;
-  text-decoration: none;
-  display: block;
-}
-.start-hero .big { font-weight: 700; font-size: 27px; line-height: 1; }
-.start-hero .hint { font-family: var(--font-caveat), 'Caveat', cursive; font-size: 18px; opacity: .92; margin-top: 4px; }
-
 /* stats grid */
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .stat { text-align: center; padding: 12px 8px; }
@@ -171,20 +110,26 @@ body {
   gap: 8px;
 }
 
-/* activity / sticker tag */
-.act { display: flex; gap: 12px; align-items: flex-start; }
-.tag {
+/* entry row */
+.entry { display: flex; gap: 10px; align-items: flex-start; }
+.entry .t { font-weight: 700; font-size: 16px; }
+.entry .t.done { text-decoration: line-through; color: var(--muted); }
+.entry .b { font-size: 13.5px; color: var(--muted); margin-top: 2px; white-space: pre-wrap; }
+.entry .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.entry .meta.overdue { color: var(--urgent); font-weight: 700; }
+
+.check {
   flex: 0 0 auto;
-  width: 42px; height: 42px;
+  width: 26px; height: 26px;
   border-radius: 50% 50% 48% 52%/52% 48% 50% 50%;
   border: 2.5px solid var(--ink);
+  background: #fff;
+  cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 16px;
+  font-weight: 800; font-size: 14px;
+  padding: 0;
 }
-.tag.r { background: var(--rayner-soft); color: var(--rayner); }
-.tag.a { background: var(--ada-soft); color: #b3243a; }
-.act .t { font-weight: 700; font-size: 17px; }
-.act .d { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
+.check.done { background: var(--accent); color: #fff; }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .chip {
@@ -194,24 +139,20 @@ body {
   padding: 2px 9px;
   background: #fff;
 }
-.chip.card-chip { background: var(--hi); font-weight: 700; }
+.chip.hi { background: var(--hi); font-weight: 700; }
 
-/* deck peek */
-.deck { display: flex; align-items: center; justify-content: space-between; background: #fff; transform: rotate(-.5deg); }
-.deck .t { font-weight: 700; font-size: 17px; }
-.deck .d { font-size: 13.5px; color: var(--muted); margin-top: 2px; }
-.mini-cards { display: flex; }
-.mini {
-  width: 30px; height: 42px;
-  border: 2.5px solid var(--ink);
-  border-radius: 5px;
-  margin-left: -10px;
-  background: var(--cream);
-  box-shadow: 2px 2px 0 var(--ink);
+/* chip-select: tap-to-choose group used by the capture form */
+.chip-select { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-btn {
+  font-family: inherit;
+  font-size: 13px;
+  border: 2px solid var(--ink);
+  border-radius: var(--sketch-chip);
+  padding: 5px 11px;
+  background: #fff;
+  cursor: pointer;
 }
-.mini.c1 { background: var(--rayner-soft); transform: rotate(-8deg); margin-left: 0; }
-.mini.c2 { background: var(--ada-soft); transform: rotate(2deg); }
-.mini.c3 { background: var(--hi); transform: rotate(10deg); }
+.chip-btn.on { background: var(--accent); color: #fff; font-weight: 700; }
 
 /* bottom nav */
 .nav {
@@ -262,9 +203,25 @@ body {
   text-decoration: none;
   display: inline-block;
 }
-.sticker-btn.primary { background: var(--rayner); color: #fff; }
-.sticker-btn.danger  { background: var(--ada); color: #fff; }
+.sticker-btn.primary { background: var(--accent); color: #fff; }
+.sticker-btn.danger  { background: var(--urgent); color: #fff; }
 .sticker-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* capture hero — big tappable "add something" entry point */
+.capture-hero {
+  text-align: center;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--sketch3);
+  padding: 18px 16px;
+  transform: rotate(.6deg);
+  box-shadow: 5px 6px 0 var(--ink);
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
+}
+.capture-hero .big { font-weight: 700; font-size: 22px; line-height: 1; }
+.capture-hero .hint { font-family: var(--font-caveat), 'Caveat', cursive; font-size: 17px; opacity: .92; margin-top: 4px; }
 
 /* form bits */
 .field {
@@ -278,127 +235,6 @@ body {
   color: var(--ink);
 }
 .field:focus { outline: none; box-shadow: 3px 3px 0 var(--ink); }
+textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
 
-/* ============================================================
-   Direction C — clean data layout, Fitnerds personality kept.
-   Used by the exercise-block workout screen + picker.
-   ============================================================ */
-
-/* exercise block card */
-.block-card {
-  background: #fff;
-  border: 2px solid var(--ink);
-  border-radius: 14px;
-  box-shadow: 3px 3px 0 var(--ink);
-  padding: 11px 12px;
-  opacity: 0;
-  transform: translateY(10px);
-  animation: rise .5s ease forwards;
-}
-
-.set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.set-table th {
-  text-align: left; font-weight: 600; font-size: 9.5px;
-  color: var(--muted); letter-spacing: .04em; padding: 2px 4px;
-}
-.set-table td { padding: 3px 4px; border-top: 1px solid #eee; }
-.set-table tr:first-child td { border-top: none; }
-
-.add-set-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 6px; align-items: center; }
-.add-set-row .field { padding: 7px 8px; font-size: 14px; }
-.add-set-row .sticker-btn { padding: 7px 10px; font-size: 13px; }
-
-.add-exercise-btn {
-  width: 100%;
-  font-family: inherit;
-  font-weight: 800;
-  font-size: 14px;
-  background: var(--rayner);
-  color: #fff;
-  border: 2px solid var(--ink);
-  border-radius: 12px;
-  box-shadow: 3px 3px 0 var(--ink);
-  padding: 11px;
-  cursor: pointer;
-  opacity: 0;
-  transform: translateY(10px);
-  animation: rise .5s ease forwards;
-}
-
-/* exercise picker overlay */
-.picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  margin: 0 auto;
-  max-width: 420px;
-  background:
-    radial-gradient(circle at 1px 1px, rgba(32,32,30,.08) 1px, transparent 0) 0 0/22px 22px,
-    var(--cream);
-  border-left: 2.5px solid var(--ink);
-  border-right: 2.5px solid var(--ink);
-  display: flex;
-  flex-direction: column;
-  padding:
-    max(18px, env(safe-area-inset-top)) 16px
-    max(16px, env(safe-area-inset-bottom));
-  overflow: hidden;
-}
-.picker-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 7px; }
-.picker-row {
-  display: flex; align-items: center; gap: 8px;
-  background: #fff; border: 2px solid var(--ink);
-  border-radius: 10px; padding: 7px 9px;
-}
-.picker-thumb {
-  width: 34px; height: 34px; flex: 0 0 auto;
-  border-radius: 8px; border: 1.5px solid var(--ink);
-  object-fit: cover; background: var(--cream);
-}
-.picker-thumb-empty {
-  display: flex; align-items: center; justify-content: center;
-  font-size: 9px; font-weight: 700; color: var(--rayner);
-  background: var(--rayner-soft);
-}
-.picker-add {
-  width: 26px; height: 26px; flex: 0 0 auto;
-  border-radius: 50%; background: var(--hi);
-  border: 1.5px solid var(--ink);
-  font-weight: 800; font-size: 15px; line-height: 1;
-  cursor: pointer;
-}
-.picker-add:disabled { opacity: .5; }
-
-/* card flip / rarity glow for surprise reveal */
-.reveal-wrap { perspective: 1000px; }
-.reveal {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 3 / 4;
-  transform-style: preserve-3d;
-  transition: transform .9s cubic-bezier(.4,1.4,.5,1);
-}
-.reveal.flipped { transform: rotateY(180deg); }
-.reveal .face {
-  position: absolute; inset: 0;
-  border: 2.5px solid var(--ink);
-  border-radius: 18px;
-  background: #fff;
-  box-shadow: 5px 6px 0 var(--ink);
-  backface-visibility: hidden;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  padding: 18px;
-  text-align: center;
-}
-.reveal .back { transform: rotateY(180deg); }
-.reveal .face.r-common    { background: #fff; }
-.reveal .face.r-rare      { background: var(--rayner-soft); }
-.reveal .face.r-epic      { background: var(--ada-soft); }
-.reveal .face.r-legendary { background: var(--hi); }
-.reveal .face.r-legendary,
-.reveal .face.r-epic { animation: glow 1.6s ease-in-out infinite alternate; }
-@keyframes glow {
-  from { box-shadow: 5px 6px 0 var(--ink); }
-  to   { box-shadow: 5px 6px 0 var(--ink), 0 0 22px var(--hi); }
-}
+.field-label { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block; }

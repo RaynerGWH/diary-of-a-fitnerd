@@ -52,7 +52,7 @@ export function BrandIcon({
             letterSpacing: -Math.round(size * 0.01),
           }}
         >
-          F!
+          R.
         </div>
         {!compact && (
           <div style={{ display: "flex", marginTop: Math.round(size * 0.07) }}>
@@ -63,16 +63,6 @@ export function BrandIcon({
                 borderRadius: "50%",
                 background: "#2f4fe0",
                 border: `${border}px solid #20201e`,
-              }}
-            />
-            <div
-              style={{
-                width: dot,
-                height: dot,
-                borderRadius: "50%",
-                background: "#ef5a6b",
-                border: `${border}px solid #20201e`,
-                marginLeft: Math.round(size * 0.05),
               }}
             />
           </div>
