@@ -18,7 +18,7 @@ const caveat = Caveat({
 export const metadata: Metadata = {
   applicationName: "Rayner OS",
   title: "Rayner OS",
-  description: "tasks, notes, logs — one place instead of scattered pages",
+  description: "tasks, notes, logs: one place instead of scattered pages",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

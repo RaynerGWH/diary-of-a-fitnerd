@@ -46,7 +46,7 @@ export default async function HomePage() {
       {tasks.length === 0 ? (
         <div className="card alt d3">
           <div className="text-[14px] text-[color:var(--muted)]">
-            nothing due — nice, or add one above.
+            nothing due, nice, or add one above.
           </div>
         </div>
       ) : (
