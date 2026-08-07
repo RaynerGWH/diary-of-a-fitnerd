@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 
 // Shared art for every generated icon (favicon, apple-touch-icon, manifest
 // PWA icons). Rendered by next/og's ImageResponse (Satori), so only
-// flex-based layout + basic CSS is allowed — no radial gradients, no `gap`.
+// flex-based layout + basic CSS is allowed (no radial gradients, no `gap`).
 export function BrandIcon({
   size,
   maskable = false,

@@ -14,6 +14,8 @@ function endOfToday(): Date {
 }
 
 // No-due-date tasks are included too: undated tasks still need to surface somewhere.
+// Open tasks due today or overdue, plus open tasks with no due date at all.
+// This is the "what should I look at right now" list on the home screen.
 export async function getTodayTasks(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
