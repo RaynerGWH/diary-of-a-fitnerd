@@ -1,37 +1,27 @@
 -- ============================================================
--- Rayner OS: Supabase schema
--- A personal daily-ops journal: tasks, notes, logs, schedule,
--- across school / work / RA / gym / diet / expenditure.
--- Designed so entries can later be exported into a Neo4j knowledge
--- graph and ingested from outside the app (telegram_inbox).
--- Paste this into Supabase -> SQL Editor and run.
--- Sections marked  >>> EDIT  need your real values.
+-- Migration: Fitnerds! -> Rayner OS
+--
+-- For reusing an existing Supabase project that still has the old
+-- Fitnerds! fitness schema. Not needed on a brand new project;
+-- there, schema.sql alone is enough.
+--
+-- profiles and allowed_emails are kept as-is: Rayner OS reuses them
+-- unchanged, so they're not touched here.
 -- ============================================================
 
-create extension if not exists pgcrypto;
-
-create table if not exists public.allowed_emails (
-  email text primary key
-);
-insert into public.allowed_emails (email) values
-  ('rayner@example.com')   -- >>> EDIT
-on conflict do nothing;
-
-create table if not exists public.profiles (
-  id            uuid primary key references auth.users(id) on delete cascade,
-  email         text not null,
-  display_name  text,
-  created_at    timestamptz not null default now()
-);
+drop table if exists public.workout_sets cascade;
+drop table if exists public.workout_exercises cascade;
+drop table if exists public.workouts cascade;
+drop table if exists public.user_cards cascade;
+drop table if exists public.card_defs cascade;
+drop table if exists public.ff_classes cascade;
+drop table if exists public.ff_locations cascade;
+drop table if exists public.exercises cascade;
+drop table if exists public.user_prefs cascade;
 
 -- category is freeform text (school | work | ra | gym | diet | expenditure |
 -- other) rather than an enum, so new categories never need a migration.
 -- status/due_at apply to tasks only; amount/currency to expenditure entries.
--- ------------------------------------------------------------
--- ENTRIES: the atomic unit. A task, a note, a log, or an event.
--- category is freeform text (school | work | ra | gym | diet |
--- expenditure | other) so new categories never need a migration.
--- ------------------------------------------------------------
 create table if not exists public.entries (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references public.profiles(id) on delete cascade,
@@ -54,9 +44,6 @@ create index if not exists entries_open_tasks_idx on public.entries (user_id, du
 
 -- Separate from category: tags are freeform many-to-many, for cross-cutting
 -- labels that don't fit a single category.
--- ------------------------------------------------------------
--- TAGS: freeform, many-to-many, orthogonal to category.
--- ------------------------------------------------------------
 create table if not exists public.tags (
   id       uuid primary key default gen_random_uuid(),
   user_id  uuid not null references public.profiles(id) on delete cascade,
@@ -70,24 +57,8 @@ create table if not exists public.entry_tags (
   primary key (entry_id, tag_id)
 );
 
--- No in-Postgres graph-edge table. The real knowledge graph will live in
--- Neo4j (populated from entries + tags later), so this stays a plain
--- relational store instead of syncing two sources of truth.
-
 -- Not wired up yet: exists so the future Telegram bot webhook can be built
 -- without another migration.
--- ------------------------------------------------------------
--- Note: no in-Postgres graph-edge table. The real knowledge graph
--- will live in Neo4j (populated from `entries` + `tags` later, likely
--- via an extraction pass) rather than manually-drawn links here.
--- Keeps one source of truth instead of syncing two.
--- ------------------------------------------------------------
-
--- ------------------------------------------------------------
--- TELEGRAM INBOX: raw bot messages land here before (optionally)
--- becoming an entry. Not wired up yet; table exists so the bot can
--- be built without another migration.
--- ------------------------------------------------------------
 create table if not exists public.telegram_inbox (
   id                  uuid primary key default gen_random_uuid(),
   telegram_message_id bigint,
@@ -98,43 +69,12 @@ create table if not exists public.telegram_inbox (
   created_at          timestamptz not null default now()
 );
 
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  if exists (select 1 from public.allowed_emails a
-             where lower(a.email) = lower(new.email)) then
-    insert into public.profiles (id, email, display_name)
-    values (new.id, new.email, split_part(new.email, '@', 1))
-    on conflict (id) do nothing;
-  end if;
-  return new;
-end;
-$$;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute function public.handle_new_user();
-
 -- Everything is private to its owner: no shared-read policies, unlike the
 -- old Fitnerds! schema, since this is a personal journal, not a shared app.
--- ------------------------------------------------------------
--- ROW LEVEL SECURITY
--- Everything is private to its owner. No shared-read policies:
--- unlike Fitnerds, this is a personal journal, not a shared app.
--- ------------------------------------------------------------
-alter table public.profiles      enable row level security;
 alter table public.entries       enable row level security;
 alter table public.tags          enable row level security;
 alter table public.entry_tags    enable row level security;
 alter table public.telegram_inbox enable row level security;
-
-create policy "read own profile"   on public.profiles for select to authenticated using (id = auth.uid());
-create policy "update own profile" on public.profiles for update to authenticated
-  using (id = auth.uid()) with check (id = auth.uid());
 
 create policy "read own entries" on public.entries for select to authenticated
   using (user_id = auth.uid());
@@ -156,8 +96,6 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
 
 -- Deliberately no "authenticated" policy on telegram_inbox: only the
 -- service_role key (bot webhook, server-side only) may touch this table.
--- telegram_inbox: no client policies. Only the service_role key (bot webhook,
--- server-side only) touches this table. Deliberately no "authenticated" policy.
 
 -- entries streams over realtime so a future Telegram-bot insert shows up on
 -- the dashboard live, without a manual refresh.

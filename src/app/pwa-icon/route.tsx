@@ -2,7 +2,6 @@ import { ImageResponse } from "next/og";
 import { type NextRequest } from "next/server";
 import { BrandIcon } from "@/lib/brand-icon";
 
-// PNG icons referenced by manifest.webmanifest, e.g. /pwa-icon?size=512&maskable=1
 export function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const size = clamp(Number(searchParams.get("size")) || 512, 48, 1024);
