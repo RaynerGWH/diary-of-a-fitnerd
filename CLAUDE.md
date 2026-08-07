@@ -12,7 +12,7 @@ SPEC.md's "Locked decisions" for what that means in practice.
 src/
 ├── app/
 │   ├── page.tsx                  Today view: open tasks + today's logs + stats
-│   ├── login/                    Magic-link sign-in
+│   ├── login/                    Email + password sign-in
 │   ├── auth/callback/route.ts    OAuth code exchange
 │   ├── denied/                   Allow-list rejection page
 │   ├── capture/                  Quick-add form: type → category → title/body → save
@@ -41,9 +41,10 @@ src/
 
 1. Create a Supabase project. Paste `schema.sql` into the SQL editor and run it.
 2. Edit the `>>> EDIT` line in `allowed_emails` with the real email.
-3. Enable Email auth → magic link in Supabase Auth settings.
-4. Copy `.env.example` to `.env.local`. Fill in the URL + anon key from Supabase project settings → API. Put the real email in `ALLOWED_EMAILS`.
-5. `npm install && npm run dev` → open `http://localhost:3000`.
+3. Enable Email auth in Supabase Auth settings (password sign-in, not magic link/OTP).
+4. In Supabase Dashboard → Authentication → Users, manually add the user: real email + a password, with "Auto Confirm User" checked. There's no self-serve sign-up UI in the app — single user, so the account is created once, by hand.
+5. Copy `.env.example` to `.env.local`. Fill in the URL + anon key from Supabase project settings → API. Put the real email in `ALLOWED_EMAILS`.
+6. `npm install && npm run dev` → open `http://localhost:3000`.
 
 ## Common edits
 
@@ -57,7 +58,7 @@ User asked **to be asked first** before any Vercel deploy. When green-lit:
 1. `git push` to GitHub.
 2. Import repo into Vercel.
 3. Add env vars in Vercel project settings (same three as `.env.local`).
-4. Set Supabase Auth → Site URL to the Vercel deployment URL so magic-link redirects work.
+4. Set Supabase Auth → Site URL to the Vercel deployment URL (still relevant if password-reset emails get added later).
 
 ## v2 hooks (already wired in the schema, not built yet)
 
