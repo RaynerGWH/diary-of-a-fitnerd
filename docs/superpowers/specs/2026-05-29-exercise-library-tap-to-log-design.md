@@ -1,4 +1,4 @@
-# Exercise Library + Tap-to-Log — design
+# Exercise Library + Tap-to-Log: design
 
 **Date:** 2026-05-29
 **Status:** Implemented (code complete; awaiting user's Supabase migration + library import)
@@ -26,15 +26,15 @@ supports ordering; UI deferred).
 
 ## Data source
 
-[free-exercise-db](https://github.com/yuhonas/free-exercise-db) — ~873
+[free-exercise-db](https://github.com/yuhonas/free-exercise-db): ~873
 exercises, **public domain (Unlicense)**. Fields per exercise: `name`,
 `primaryMuscles[]`, `secondaryMuscles[]`, `equipment`, `category`, `force`,
 `level`, `mechanic`, `instructions[]`, `images[]`. The JSON (~1 MB, no images)
 is bundled at `src/data/exercises.json`. Images are referenced via the
 **jsDelivr CDN** (`cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exercises/<path>`)
-— no image hosting to set up.
+(no image hosting to set up).
 
-## Schema changes (additive migration — safe on the ~empty prod DB)
+## Schema changes (additive migration, safe on the ~empty prod DB)
 
 Delivered as `migrations/0001_exercise_library.sql` (paste into Supabase SQL
 editor) and mirrored into `schema.sql`.
@@ -88,7 +88,7 @@ Peek + own session subscribe to `workout_exercises` (filter `workout_id`) and
 Vitest (new, minimal). Unit-test pure logic: dataset-entry → exercise-row
 mapper, muscle → body-part grouping, per-block `set_index` computation.
 
-## Manual steps for the user (cannot be automated — their Supabase)
+## Manual steps for the user (cannot be automated, their Supabase)
 
 1. Run `migrations/0001_exercise_library.sql` in the Supabase SQL editor.
 2. After deploy, open `/manage` → "Load / update exercise library".
