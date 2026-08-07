@@ -23,3 +23,17 @@ export function formatRelative(iso: string): string {
 export function ownerInitial(displayName: string | null, email: string): string {
   return (displayName ?? email).trim()[0]?.toUpperCase() ?? "?";
 }
+
+// For due dates, which are usually in the future (formatRelative assumes the past).
+export function formatDueDate(iso: string): string {
+  const date = new Date(iso);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(date);
+  target.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays === -1) return "yesterday";
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}

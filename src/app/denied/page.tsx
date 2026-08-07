@@ -14,8 +14,8 @@ export default async function DeniedPage() {
       <div className="card d1">
         <div className="text-[19px] font-bold">nope, not you</div>
         <div className="text-[14px] text-[color:var(--muted)] mt-1">
-          Fitnerds! is locked to a private allow-list. if you think this is a mistake,
-          poke rayner.
+          Rayner OS is locked to a private allow-list. if you think this is a mistake,
+          poke Rayner. Or call the police. (but probably just poke Rayner)
         </div>
         {user?.email && (
           <div className="text-[13px] mt-3">
