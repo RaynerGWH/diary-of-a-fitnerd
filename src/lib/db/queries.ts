@@ -13,8 +13,7 @@ function endOfToday(): Date {
   return d;
 }
 
-// Open tasks due today or overdue, plus open tasks with no due date at all —
-// this is the "what should I look at right now" list on the home screen.
+// No-due-date tasks are included too: undated tasks still need to surface somewhere.
 export async function getTodayTasks(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -29,7 +28,6 @@ export async function getTodayTasks(userId: UUID): Promise<Entry[]> {
   return (data as Entry[]) ?? [];
 }
 
-// Notes/logs/events that happened today.
 export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -82,8 +80,7 @@ export async function getOpenTaskCount(userId: UUID): Promise<number> {
   return count ?? 0;
 }
 
-// Day-streak: consecutive calendar days (back from today) with at least one
-// entry logged. Uses the user's *local* date.
+// Uses the user's *local* date, not UTC, so the streak matches what they actually see.
 export async function getDayStreak(userId: UUID): Promise<number> {
   const supabase = await createClient();
   const since = new Date();
