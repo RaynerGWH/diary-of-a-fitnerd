@@ -1,9 +1,9 @@
 -- ============================================================
--- Rayner OS — Supabase schema
--- A personal daily-ops journal: tasks, notes, logs, schedule —
+-- Rayner OS: Supabase schema
+-- A personal daily-ops journal: tasks, notes, logs, schedule,
 -- across school / work / RA / gym / diet / expenditure.
--- Designed so entries can later be connected into a knowledge graph
--- (entry_links) and ingested from outside the app (telegram_inbox).
+-- Designed so entries can later be exported into a Neo4j knowledge
+-- graph and ingested from outside the app (telegram_inbox).
 -- Paste this into Supabase -> SQL Editor and run.
 -- Sections marked  >>> EDIT  need your real values.
 -- ============================================================
@@ -32,7 +32,7 @@ create table if not exists public.profiles (
 );
 
 -- ------------------------------------------------------------
--- ENTRIES — the atomic unit. A task, a note, a log, or an event.
+-- ENTRIES: the atomic unit. A task, a note, a log, or an event.
 -- category is freeform text (school | work | ra | gym | diet |
 -- expenditure | other) so new categories never need a migration.
 -- ------------------------------------------------------------
@@ -57,7 +57,7 @@ create index if not exists entries_user_category_idx on public.entries (user_id,
 create index if not exists entries_open_tasks_idx on public.entries (user_id, due_at) where type = 'task' and status = 'open';
 
 -- ------------------------------------------------------------
--- TAGS — freeform, many-to-many, orthogonal to category.
+-- TAGS: freeform, many-to-many, orthogonal to category.
 -- ------------------------------------------------------------
 create table if not exists public.tags (
   id       uuid primary key default gen_random_uuid(),
@@ -75,12 +75,12 @@ create table if not exists public.entry_tags (
 -- ------------------------------------------------------------
 -- Note: no in-Postgres graph-edge table. The real knowledge graph
 -- will live in Neo4j (populated from `entries` + `tags` later, likely
--- via an extraction pass) rather than manually-drawn links here —
--- keeping one source of truth instead of syncing two.
+-- via an extraction pass) rather than manually-drawn links here.
+-- Keeps one source of truth instead of syncing two.
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
--- TELEGRAM INBOX — raw bot messages land here before (optionally)
+-- TELEGRAM INBOX: raw bot messages land here before (optionally)
 -- becoming an entry. Not wired up yet; table exists so the bot can
 -- be built without another migration.
 -- ------------------------------------------------------------
@@ -120,7 +120,7 @@ create trigger on_auth_user_created
 
 -- ------------------------------------------------------------
 -- ROW LEVEL SECURITY
--- Everything is private to its owner. No shared-read policies —
+-- Everything is private to its owner. No shared-read policies:
 -- unlike Fitnerds, this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
 alter table public.profiles      enable row level security;
@@ -153,7 +153,7 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
   using (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()))
   with check (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()));
 
--- telegram_inbox: no client policies — only the service_role key (bot webhook,
+-- telegram_inbox: no client policies. Only the service_role key (bot webhook,
 -- server-side only) touches this table. Deliberately no "authenticated" policy.
 
 -- ------------------------------------------------------------
