@@ -100,8 +100,9 @@ ALLOWED_EMAILS=rayner@...
 ```
 
 ## Stays on your side (your accounts / keys)
-- Create the Supabase project; copy URL + anon key; run `schema.sql`; turn on
-  Email auth.
+- Create the Supabase project (or reuse the old Fitnerds! one, running
+  `migrations/0001_drop_fitness_tables.sql` first to clear the old fitness
+  tables); copy URL + anon key; run `schema.sql`; turn on Email auth.
 - Create the Vercel project, connect the GitHub repo, add the env vars,
   deploy.
 - Put your real email in `allowed_emails` (SQL) **and** `ALLOWED_EMAILS`

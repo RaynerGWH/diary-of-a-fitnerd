@@ -39,7 +39,7 @@ src/
 
 ## Setup (one-time, on Rayner's side)
 
-1. Create a Supabase project. Paste `schema.sql` into the SQL editor and run it.
+1. Create a Supabase project (or reuse the old Fitnerds! one). If reusing a project that still has the old fitness tables, run `migrations/0001_drop_fitness_tables.sql` first. Then paste `schema.sql` into the SQL editor and run it.
 2. Edit the `>>> EDIT` line in `allowed_emails` with the real email.
 3. Enable Email auth in Supabase Auth settings (password sign-in, not magic link/OTP).
 4. In Supabase Dashboard → Authentication → Users, manually add the user: real email + a password, with "Auto Confirm User" checked. There's no self-serve sign-up UI in the app — single user, so the account is created once, by hand.
