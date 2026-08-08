@@ -15,14 +15,15 @@ src/
 │   ├── login/                    Email + password sign-in
 │   ├── auth/callback/route.ts    OAuth code exchange
 │   ├── denied/                   Allow-list rejection page
-│   ├── capture/                  Quick-add form: type → category → title/body → save
+│   ├── capture/                  Chat capture (LLM-parsed) + capture/manual/ (old chip form fallback)
 │   └── entries/                  Timeline of everything, filterable by category
-├── components/                   PhoneFrame, Header, BottomNav, EntryCard, CaptureForm, EntriesLive
+├── components/                   PhoneFrame, Header, BottomNav, EntryCard, ChatCapture, CaptureForm, EntriesLive
 ├── lib/
 │   ├── supabase/                 Browser + server + middleware clients (@supabase/ssr)
 │   ├── auth/allow-list.ts        ALLOWED_EMAILS env parse + membership check
 │   ├── auth/current-user.ts      Server helper: profile from auth.uid()
-│   ├── db/queries.ts             Server-side query helpers (today tasks/logs, streak, filters)
+│   ├── ai/                       OpenRouter client + chat-capture message → entry parsing/validation
+│   ├── db/queries.ts             Server-side query helpers (today tasks/logs, streak, filters, chat history)
 │   ├── db/types.ts               TS types mirroring schema.sql + CATEGORIES constant
 │   └── format.ts                 Relative-time / due-date formatters
 └── middleware.ts (root)          Per-request session refresh + allow-list redirect
@@ -36,6 +37,8 @@ src/
 - **Realtime is wired in one place:** `EntriesLive` subscribes to `entries` filtered by `user_id` → `router.refresh()`. This is what will make a future Telegram-bot insert show up on the dashboard live.
 - **No knowledge graph in Postgres.** That's deliberately deferred to Neo4j later. Don't add an edges/links table here without checking with the user first (see SPEC.md).
 - **`telegram_inbox` exists but nothing writes to it yet.** No webhook route built. When building one: `service_role` key only, server-side, never `NEXT_PUBLIC_`.
+- **Chat capture (`/capture`) is the primary entry point, not `/capture/manual`.** Typed messages are parsed into an `entries` row by an LLM via OpenRouter (`src/lib/ai/`), auto-saved immediately. Uncertain parses get `needs_review = true` instead of blocking on a confirm step: that flag surfaces as a badge on `EntryCard` wherever the entry is shown. A follow-up chat message can correct *only* the most recently created entry in that session (resolved via the latest `capture_chat` row with a matching `entry_id`); there's no general edit UI yet, so fixing an older flagged entry means delete + relog. `OPENROUTER_API_KEY` is server-only, read in `src/lib/ai/openrouter.ts`, never `NEXT_PUBLIC_`.
+- **`capture_chat` holds the chat transcript**, not the entries themselves. Page load reads the last 3 hours for display; only the last ~6 rows are sent to the LLM as context per request, to keep token cost bounded regardless of how long the visible history is.
 
 ## Setup (one-time, on Rayner's side)
 
@@ -43,7 +46,7 @@ src/
 2. Edit the `>>> EDIT` line in `allowed_emails` with the real email.
 3. Enable Email auth in Supabase Auth settings (password sign-in, not magic link/OTP).
 4. In Supabase Dashboard → Authentication → Users, manually add the user: real email + a password, with "Auto Confirm User" checked. There's no self-serve sign-up UI in the app; single user, so the account is created once, by hand.
-5. Copy `.env.example` to `.env.local`. Fill in the URL + anon key from Supabase project settings → API. Put the real email in `ALLOWED_EMAILS`.
+5. Copy `.env.example` to `.env.local`. Fill in the URL + anon key from Supabase project settings → API. Put the real email in `ALLOWED_EMAILS`. Add an `OPENROUTER_API_KEY` from [openrouter.ai/keys](https://openrouter.ai/keys) for the chat capture parser.
 6. `npm install && npm run dev` → open `http://localhost:3000`.
 
 ## Common edits

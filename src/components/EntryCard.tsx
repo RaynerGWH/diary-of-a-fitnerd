@@ -61,6 +61,11 @@ export function EntryCard({
         <div className="flex-1">
           <div className={`t ${isDone ? "done" : ""}`}>{entry.title}</div>
           {entry.body && <div className="b">{entry.body}</div>}
+          {entry.needs_review && (
+            <div className="chips">
+              <span className="chip warn">needs review</span>
+            </div>
+          )}
           <div className={`meta ${overdue ? "overdue" : ""}`}>
             <span>{TYPE_LABEL[entry.type]}</span>
             <span>·</span>
