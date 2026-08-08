@@ -55,13 +55,18 @@ src/
 - **Change a token (color, shadow, radius):** edit `:root` in `src/app/globals.css`. The Tailwind theme in `tailwind.config.ts` mirrors a few of these so utility classes work too, but the raw CSS tokens are the source of truth.
 - **Editing/reordering entries:** not built in v1. `EntryCard` only supports toggle-done (tasks) and delete. Add an edit form if/when that's actually needed.
 
-## Deployment (not yet done)
+## Branching & release workflow
 
-User asked **to be asked first** before any Vercel deploy. When green-lit:
-1. `git push` to GitHub.
-2. Import repo into Vercel.
-3. Add env vars in Vercel project settings (same three as `.env.local`).
-4. Set Supabase Auth → Site URL to the Vercel deployment URL (still relevant if password-reset emails get added later).
+- **`main`** is production. Its Vercel deployment is the real, public production domain.
+- **`staging-<major>-<minor>`** (e.g. `staging-1-1`) is a long-lived release branch, one per "big feature" cycle. Vercel auto-deploys it to its own branch URL (`<project>-git-staging-1-1-<scope>.vercel.app`).
+- New work branches off the **current** `staging-<major>-<minor>` (not off `main`) as `feature/...`, and merges back into that same staging branch when done.
+- Once everything intended for that release has been tested on its staging branch, merge `staging-<major>-<minor>` → `main`. The branch is **kept, not deleted**: a permanent record of that release.
+- Immediately after, cut the next one: `staging-<major>-<minor+1>` off the fresh `main`, and repeat.
+- Vercel Deployment Protection (Vercel Authentication) should stay enabled so old `staging-*` URLs don't need to be torn down for security: keeping a branch's deployment alive forever is fine as long as it's gated behind login.
+
+## Deployment
+
+Already live on Vercel via the GitHub integration: pushes auto-deploy, no manual `vercel` CLI steps needed locally. `main` is production; see "Branching & release workflow" above for how work gets there. Env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ALLOWED_EMAILS`, `OPENROUTER_API_KEY`) live in Vercel Project Settings → Environment Variables, separate from local `.env`; a new one needs adding there too, not just locally. If setting this project up fresh on a new Vercel project: import the repo, add those four env vars, and set Supabase Auth → Site URL to the production domain.
 
 ## v2 hooks (already wired in the schema, not built yet)
 
