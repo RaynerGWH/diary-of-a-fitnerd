@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Entry, EntryType, UUID } from "./types";
+import type { ChatMessage, Entry, EntryType, UUID } from "./types";
 
 function startOfToday(): Date {
   const d = new Date();
@@ -68,6 +68,21 @@ export async function getEntries(
   const { data, error } = await q;
   if (error) throw error;
   return (data as Entry[]) ?? [];
+}
+
+// Powers the /capture chat's visible history. A 3-hour window is enough to
+// pick back up a conversation after a reload without dragging in stale turns.
+export async function getRecentChatMessages(userId: UUID, hours = 3): Promise<ChatMessage[]> {
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("capture_chat")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("created_at", since.toISOString())
+    .order("created_at", { ascending: true });
+  if (error) throw error;
+  return (data as ChatMessage[]) ?? [];
 }
 
 export async function getOpenTaskCount(userId: UUID): Promise<number> {
