@@ -2,22 +2,7 @@
 
 What was first a fitness tracker for myself has now become a place for me to jot down everything I need to remember: tasks, logs, expenses, and events across school, work, etc. 
 
-**For anyone who is here, FYI: the code is public but my data is not!** 
-
-> [!NOTE]
-> **`<< TEMPLATE >>`** This README is a starting point for you to edit.
-> Placeholders marked `<< LIKE THIS >>` are yours to fill in or delete:
-> screenshots, the live URL, and anything you would rather phrase in your own
-> voice.
-
-<< SCREENSHOT: the /capture chat box mid-conversation. This is the money shot,
-put it right here. A second one of the home screen would not hurt. >>
-
-**Live:** << your Vercel URL, or delete this line if you would rather not
-publish it. The app is single-user and allow-listed, so a stranger clicking
-through only ever reaches the sign-in screen. >>
-
----
+**For anyone viewing this, the code is public but my data is not!** 
 
 ## Where this came from
 
@@ -33,13 +18,20 @@ random thoughts nowhere at all. The problem was never that I lacked apps. It
 was that every app wanted me to decide, up front, what kind of thing I was
 recording before it would let me record it.
 
-So I completely dropped the fitness utility of this app and kept the structure. What survived was the
-scaffolding I had already gotten right: Supabase auth, the realtime plumbing,
-the PWA setup, and a hand-drawn design system I liked too much to throw away.
+My **biggest pain point** was how my journal's logs were really random. I would write down a thought, then another, flip a few empty pages forward to "make room" for the previous thought. Then, my journal would be a mess of random thoughts, and I would have to flip through the pages to find what I was looking for. 
+
+> Then I thought to myself: Why not just code an app out to just solve my own problems for once?
+
+So I completely dropped the fitness utility of this app and kept the structure. What I kept was the
+skeleton of the previous project I already had: Supabase auth, the PWA setup, and a hand-drawn design system I liked too much to throw away.
 What replaced it was a single idea:
 
 > Do not make me classify a thought in order to save it. Let me type my thoughts out in a chat box, then an LLM can work
 > out what it was afterwards.
+
+## My app in a nutshell :)
+
+![A flow diagram of the app: a message typed into /capture is classified by intent, then either parsed into one or more new entries and stored, or matched against existing entries for an edit the user confirms.](readme-diagram.png)
 
 ---
 
@@ -117,50 +109,6 @@ outside the app will show up on the dashboard live with no extra work.
 
 ---
 
-## The security model
-
-This is the part worth reading if you are here to evaluate the code, because
-"public repo, private data" is easy to say and easy to get wrong.
-
-**Two environment variables are public on purpose.**
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` ship in the
-browser bundle. That is by design and it is how the realtime websocket gets
-opened from the client. The anon key is not a secret, in the same way a
-Firebase web API key is not a secret. Security does not come from hiding it.
-
-**Security comes from row-level security.** Every table has RLS enabled and
-every policy is owner-only (`user_id = auth.uid()`). Holding the anon key gets
-you exactly nothing without a session, and a session gets you exactly your own
-rows. Two tables (`allowed_emails`, `telegram_inbox`) have RLS on and *no*
-client policies at all, which denies every client outright; the only things
-that touch them are a `security definer` trigger and a future server-side
-webhook.
-
-**Access is allow-listed twice, at two different layers.** A SQL trigger
-refuses to create a profile row for an email that is not in `allowed_emails`,
-and the Next.js middleware redirects anyone not on the list to `/denied`. There
-is no sign-up UI. Even if someone creates a Supabase account against the public
-project URL, they have no profile row, so foreign keys reject their writes.
-
-**Server Actions re-check identity themselves.** Middleware guards page
-navigations, but a POST aimed straight at a Server Action never passes through
-it. So every action calls `requireAllowedUser()` as its first line rather than
-relying on the middleware to have done it. This matters most on the capture
-path, where the check has to happen *before* the paid LLM call, not after.
-
-**Secrets that are actually secret stay server-side.** `OPENROUTER_API_KEY` is
-read only inside `src/lib/ai/openrouter.ts`. The `service_role` key is not used
-by this app at all. Neither is ever prefixed `NEXT_PUBLIC_`.
-
-**Untrusted input is treated as untrusted.** Search terms are sanitized against
-PostgREST filter-syntax injection before they reach an `ilike`. Everything the
-LLM returns is run through a validator that falls back to safe defaults instead
-of trusting the shape of the JSON. Redirect targets from `?next=` must be
-same-origin relative paths, so a crafted login link cannot bounce you to a
-phishing page right after you type your password.
-
----
-
 ## Stack
 
 | | |
@@ -177,7 +125,7 @@ Typography is Newsreader for display and Inter for UI. The visual language
 logo) is carried over from Fitnerds!, and the whole app renders inside a fixed
 phone frame because it is a phone app that happens to run in a browser.
 
-<< SCREENSHOT: the phone frame / design system, if you want to show it off >>
+Sidenote: I used OpenRouter because I wanted the ability to choose smaller, cheaper and faster models!
 
 ---
 

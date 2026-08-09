@@ -48,3 +48,6 @@ next-env.d.ts
 /CLAUDE.md
 /SPEC.md
 /docs/
+
+# local tooling config (skills, agent settings): not part of the public repo
+/.claude/
