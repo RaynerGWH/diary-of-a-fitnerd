@@ -172,7 +172,7 @@ export function ChatCapture({
         <textarea
           ref={textareaRef}
           className="field"
-          placeholder="log a task, note, expense..."
+          placeholder="type thoughts here..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
