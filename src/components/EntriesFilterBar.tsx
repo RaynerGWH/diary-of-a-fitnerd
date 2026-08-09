@@ -6,7 +6,6 @@ import { CATEGORIES, type EntryType } from "@/lib/db/types";
 
 const TYPES: { value: EntryType; label: string }[] = [
   { value: "task", label: "tasks" },
-  { value: "note", label: "notes" },
   { value: "log", label: "logs" },
   { value: "event", label: "events" },
 ];

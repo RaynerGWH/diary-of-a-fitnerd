@@ -22,6 +22,12 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 
+html {
+  /* Stops the browser's edge-swipe back/forward gesture (mobile Safari/
+     Chrome) from firing when swiping left/right anywhere on the page. */
+  overscroll-behavior-x: none;
+}
+
 body {
   font-family: var(--font-inter), system-ui, sans-serif;
   color: var(--ink);
@@ -34,6 +40,10 @@ body {
   height: 100vh;
   height: 100dvh;
   overflow: hidden;
+  overscroll-behavior-x: none;
+  /* Restricts touch panning to vertical: horizontal drags never get
+     interpreted as a swipe/navigation gesture in the first place. */
+  touch-action: pan-y;
   /* Safe-area aware so the centered phone frame clears the notch / home
      indicator when installed as a standalone PWA (viewport-fit: cover). */
   padding:
@@ -60,6 +70,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  touch-action: pan-y;
 }
 .phone::before {
   content: "";
@@ -166,9 +177,32 @@ body {
   align-items: center;
   gap: 8px;
 }
+/* collapsible section header (a <button>, so reset the button chrome back
+   to looking like the plain .label text above). */
+.label-toggle {
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+}
+.label-arrow {
+  display: inline-block;
+  font-size: 10px;
+  transition: transform 0.2s ease;
+}
+.label-arrow.open { transform: rotate(90deg); }
 
 /* entry row */
 .entry { display: flex; gap: 10px; align-items: flex-start; }
+.entry-content { cursor: pointer; border-radius: 8px; }
+.entry-content:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .entry .t { font-weight: 700; font-size: 16px; }
 .entry .t.done { text-decoration: line-through; color: var(--muted); }
 .entry .b { font-size: 13.5px; color: var(--muted); margin-top: 2px; white-space: pre-wrap; }
@@ -300,7 +334,14 @@ body {
   color: var(--ink);
 }
 .field:focus { outline: none; box-shadow: 3px 3px 0 var(--ink); }
-textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
+textarea.field {
+  resize: vertical;
+  min-height: 70px;
+  font-family: inherit;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+textarea.field::-webkit-scrollbar { display: none; }
 
 .field-label { font-size: 13px; font-weight: 700; color: var(--muted); margin-bottom: 4px; display: block; }
 
@@ -345,6 +386,59 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
 .bubble.pending { opacity: .55; }
 .bubble.failed { background: var(--urgent-soft); }
 .bubble .flag { display: block; margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--urgent); }
+
+.restart-chat-btn {
+  align-self: flex-start;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+.restart-chat-btn:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+/* pending edit/new-fallback confirmation: needs real room for the full
+   field form, wider than a normal chat bubble. */
+.bubble:has(.pending-edit-card) { max-width: 100%; }
+.pending-edit-card {
+  margin-top: 10px;
+  padding: 10px;
+  border: 2px dashed var(--ink);
+  border-radius: 14px;
+  background: var(--paper);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pending-edit-label { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.pending-cancelled {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--muted);
+}
+
+/* route-navigation loading screen (app/loading.tsx) */
+.loading-screen {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loading-pulse {
+  animation: loading-pulse 1.1s ease-in-out infinite;
+}
+@keyframes loading-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.9); }
+}
 
 .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
 .chat-input-row .field { flex: 1; }

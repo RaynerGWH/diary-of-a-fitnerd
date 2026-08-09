@@ -11,7 +11,7 @@ import { getRecentChatMessages } from "@/lib/db/queries";
 // display_name set, fell back to the email's local part).
 const GREETINGS = [
   "What's up, Rayner?",
-  "Late night log?",
+  "alright, alright, alright.",
   "Back at it?",
   "What's on your mind?",
   "Go ahead, I'm listening.",

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { shuffle } from "animejs";
-import { sendCaptureMessage } from "@/app/capture/chat-actions";
+import { sendCaptureMessage, type PendingEdit } from "@/app/capture/chat-actions";
+import { updateEntry, createEntryFromFields } from "@/app/entries/actions";
 import { CactusIcon } from "./Doodle";
+import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { ChatMessage } from "@/lib/db/types";
 
 type Bubble = {
@@ -12,6 +15,8 @@ type Bubble = {
   content: string;
   status: "sent" | "pending" | "failed";
   flagged?: boolean;
+  pendingEdit?: PendingEdit;
+  pendingResolution?: "applied" | "cancelled";
 };
 
 // Rotates through while a message is being parsed, instead of sitting on a
@@ -51,6 +56,84 @@ function PendingLabel() {
   return <span className="pending-word">{wordsRef.current[i]}</span>;
 }
 
+// Edits never auto-apply (see chat-actions.ts): this renders the LLM's
+// proposal as an editable form, prefilled, so the user can confirm as-is,
+// tweak anything first, or cancel outright rather than trusting a
+// confidently-wrong match.
+function PendingEditCard({
+  pending,
+  onResolved,
+}: {
+  pending: PendingEdit;
+  onResolved: (result: "applied" | "cancelled") => void;
+}) {
+  const router = useRouter();
+  const [form, setForm] = useState<EditForm>(() =>
+    formFromEntryLike({
+      type: pending.fields.type,
+      category: pending.fields.category,
+      title: pending.fields.title,
+      body: pending.fields.body,
+      due_at: pending.fields.dueAt,
+      amount: pending.fields.amount,
+      currency: pending.fields.currency,
+    }),
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onConfirm() {
+    setSaving(true);
+    setError(null);
+    try {
+      const fields = fieldsFromForm(form);
+      if (pending.kind === "edit") {
+        await updateEntry(pending.entryId, {
+          ...fields,
+          title: fields.title || pending.currentTitle,
+          status: pending.fields.status,
+        });
+      } else {
+        await createEntryFromFields({ ...fields, title: fields.title || "untitled" });
+      }
+      router.refresh();
+      onResolved("applied");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "couldn't save that, try again");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="pending-edit-card">
+      <div className="pending-edit-label">
+        {pending.kind === "edit" ? `editing: ${pending.currentTitle}` : "log as new entry?"}
+      </div>
+      <EntryEditForm form={form} onChange={setForm} />
+      {error && <div className="text-[13px] text-[color:var(--urgent)]">{error}</div>}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          className="sticker-btn primary"
+          onClick={onConfirm}
+          disabled={saving || !form.title.trim()}
+        >
+          {saving ? "saving..." : pending.kind === "edit" ? "confirm edit" : "log as new"}
+        </button>
+        <button
+          type="button"
+          className="sticker-btn"
+          onClick={() => onResolved("cancelled")}
+          disabled={saving}
+        >
+          cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ChatCapture({
   initialMessages,
   greeting,
@@ -66,8 +149,8 @@ export function ChatCapture({
   const threadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Set when "restart chat" is pressed: excludes everything before this
-  // moment from the parser's context/correction target, on top of the
-  // server's own 15-minute staleness cutoff.
+  // moment from the parser's context, on top of the server's own 15-minute
+  // staleness cutoff.
   const restartedAfterRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -87,6 +170,12 @@ export function ChatCapture({
   function handleRestart() {
     restartedAfterRef.current = new Date().toISOString();
     setBubbles([]);
+  }
+
+  function resolvePendingEdit(bubbleId: string, result: "applied" | "cancelled") {
+    setBubbles((prev) =>
+      prev.map((b) => (b.id === bubbleId ? { ...b, pendingResolution: result } : b)),
+    );
   }
 
   function sendMessage() {
@@ -116,7 +205,8 @@ export function ChatCapture({
                   role: "assistant" as const,
                   content: result.assistantMessage.content,
                   status: "sent" as const,
-                  flagged: result.entry.needs_review,
+                  flagged: result.status === "applied" ? result.flagged : false,
+                  pendingEdit: result.status === "pending" ? result.pending : undefined,
                 }
               : b,
           ),
@@ -165,6 +255,10 @@ export function ChatCapture({
           >
             {b.status === "pending" ? <PendingLabel /> : b.content}
             {b.flagged && <span className="flag">not sure about this one, reply to fix it up</span>}
+            {b.pendingEdit && !b.pendingResolution && (
+              <PendingEditCard pending={b.pendingEdit} onResolved={(r) => resolvePendingEdit(b.id, r)} />
+            )}
+            {b.pendingResolution === "cancelled" && <span className="pending-cancelled">cancelled</span>}
           </div>
         ))}
       </div>
@@ -187,15 +281,7 @@ export function ChatCapture({
         type="button"
         onClick={handleRestart}
         disabled={bubbles.length === 0}
-        className="sub"
-        style={{
-          fontSize: 13,
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: bubbles.length === 0 ? "default" : "pointer",
-          opacity: bubbles.length === 0 ? 0.5 : 1,
-        }}
+        className="restart-chat-btn"
       >
         restart chat
       </button>

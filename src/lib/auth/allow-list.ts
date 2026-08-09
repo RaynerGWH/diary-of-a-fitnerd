@@ -1,4 +1,4 @@
-export function getAllowedEmails(): string[] {
+function getAllowedEmails(): string[] {
   return (process.env.ALLOWED_EMAILS ?? "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
