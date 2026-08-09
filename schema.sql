@@ -45,6 +45,9 @@ create table if not exists public.entries (
   amount       numeric(10,2),
   currency     text,
   source       text not null default 'app' check (source in ('app','telegram')),
+  -- Set by the chat-capture parser when it's unsure about a field (see
+  -- capture_chat below). Surfaced as a badge until fixed or re-logged.
+  needs_review boolean not null default false,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now()
 );
@@ -98,6 +101,24 @@ create table if not exists public.telegram_inbox (
   created_at          timestamptz not null default now()
 );
 
+-- ------------------------------------------------------------
+-- CAPTURE CHAT: transcript behind the /capture chat UI. Each user
+-- message and the parser's reply are a row; entry_id links an
+-- assistant row to the entries row it created or corrected, so a
+-- follow-up ("actually make that due tomorrow") can resolve which
+-- entry to update.
+-- ------------------------------------------------------------
+create table if not exists public.capture_chat (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references public.profiles(id) on delete cascade,
+  role       text not null check (role in ('user', 'assistant')),
+  content    text not null,
+  entry_id   uuid references public.entries(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+create index if not exists capture_chat_user_created_idx
+  on public.capture_chat (user_id, created_at desc);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -131,6 +152,7 @@ alter table public.entries       enable row level security;
 alter table public.tags          enable row level security;
 alter table public.entry_tags    enable row level security;
 alter table public.telegram_inbox enable row level security;
+alter table public.capture_chat  enable row level security;
 
 create policy "read own profile"   on public.profiles for select to authenticated using (id = auth.uid());
 create policy "update own profile" on public.profiles for update to authenticated
@@ -158,6 +180,11 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
 -- service_role key (bot webhook, server-side only) may touch this table.
 -- telegram_inbox: no client policies. Only the service_role key (bot webhook,
 -- server-side only) touches this table. Deliberately no "authenticated" policy.
+
+create policy "read own capture_chat" on public.capture_chat for select to authenticated
+  using (user_id = auth.uid());
+create policy "write own capture_chat" on public.capture_chat for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- entries streams over realtime so a future Telegram-bot insert shows up on
 -- the dashboard live, without a manual refresh.

@@ -28,13 +28,19 @@ Never commit real entries, real emails, or the `service_role` key.
   freeform-but-guided `category` (school / work / ra / gym / diet /
   expenditure / other, picked via chips in the capture UI). This keeps the
   schema simple now and avoids seven half-finished domain-specific tables.
-- **Capture is the core interaction.** One form, four type choices, one tap
-  to a category chip, save. The whole point is friction low enough that
-  logging something takes less effort than flipping to a new notebook page.
-- **Today view is the home screen.** Open tasks (due/overdue first, then
-  no-due-date) at the top, then everything logged today below. Planner-style,
-  not an infinite feed: the app should answer "what should I look at right
-  now."
+- **Capture is the core interaction.** `/capture` is a chat box, the only
+  entry point (the old chip-based `/capture/manual` fallback was removed):
+  type naturally, an LLM (via OpenRouter) parses it into an entry and saves
+  it immediately, no type/category picking required. Low-confidence parses
+  get a `needs_review` flag instead of a blocking confirm step, so capture
+  never waits on you. A follow-up message, sent within 15 minutes, can
+  correct the entry it just created; a "restart chat" button lets you force
+  that boundary early. See `docs/future-ideas.md` for what's deliberately
+  deferred (voice input, multi-entry messages, real reminders).
+- **Home is the home screen**, not "today". Open tasks (due/overdue first,
+  then no-due-date) at the top, then everything logged today below,
+  filterable by category via chips. Planner-style, not an infinite feed:
+  the app should answer "what should I look at right now."
 - **No in-Postgres knowledge graph.** The real graph will live in **Neo4j**,
   populated from `entries` (and later an extraction pass) once there's enough
   data to make graphing worthwhile. Postgres stays a plain relational store,
@@ -51,7 +57,7 @@ Never commit real entries, real emails, or the `service_role` key.
 **v1 (build now)**
 1. Email+password auth, allow-list gated → `/denied` for anyone else. No self-serve sign-up; the one account is created by hand in the Supabase Dashboard.
 2. Today view: open tasks + today's notes/logs + streak/open-count stats.
-3. Capture flow: type → category chip → title/body → (due date | amount) → save.
+3. Capture flow: chat box → LLM parses into an entry → auto-saved, flagged if uncertain.
 4. Entries/timeline: browse everything, filter by category.
 
 **v2 (later, schema already supports it)**
@@ -67,11 +73,15 @@ Never commit real entries, real emails, or the `service_role` key.
 - `profiles`: one row per allow-listed user.
 - `entries`: the atomic unit: type, category, title, body, status (tasks
   only), due_at, occurred_at, amount/currency (expenditure), source
-  (`app` | `telegram`).
+  (`app` | `telegram`), needs_review (set by the chat-capture parser when
+  it's unsure).
 - `tags` + `entry_tags`: freeform many-to-many tagging, orthogonal to
   category. No UI yet, schema-only for now.
 - `telegram_inbox`: raw bot messages land here before becoming an entry.
   Server-side only (`service_role`), no client RLS policy.
+- `capture_chat`: transcript behind the `/capture` chat UI (role, content,
+  linked `entry_id`). Read on page load for the last 3 hours; only the last
+  few rows are sent to the LLM as context per request.
 
 ## Design system
 
@@ -97,7 +107,11 @@ visual language, not a live spec for this app's screens).
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ALLOWED_EMAILS=rayner@...
+OPENROUTER_API_KEY=...
 ```
+`OPENROUTER_API_KEY` is server-only (read in `src/lib/ai/openrouter.ts`),
+never `NEXT_PUBLIC_`. Powers the `/capture` chat parser via
+[OpenRouter](https://openrouter.ai).
 
 ## Stays on your side (your accounts / keys)
 - Create the Supabase project (or reuse the old Fitnerds! one, running

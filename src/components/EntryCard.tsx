@@ -1,10 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toggleTaskStatus, deleteEntry } from "@/app/entries/actions";
 import { formatRelative, formatDueDate } from "@/lib/format";
-import type { Entry } from "@/lib/db/types";
+import type { Entry, EntryStatus } from "@/lib/db/types";
 
 const TYPE_LABEL: Record<Entry["type"], string> = {
   task: "task",
@@ -23,26 +23,40 @@ export function EntryCard({
   delayClass?: string;
 }) {
   const router = useRouter();
-  const [pending, start] = useTransition();
+  // Optimistic: flip instantly on click, reconcile with the server in the
+  // background instead of waiting on the round trip before updating anything.
+  const [status, setStatus] = useState<EntryStatus | null>(entry.status);
+  const [removed, setRemoved] = useState(false);
+
+  useEffect(() => setStatus(entry.status), [entry.status]);
 
   const isTask = entry.type === "task";
-  const isDone = entry.status === "done";
+  const isDone = status === "done";
   const overdue =
     isTask && !isDone && entry.due_at !== null && new Date(entry.due_at) < new Date();
 
-  function onToggle() {
-    start(async () => {
-      await toggleTaskStatus(entry.id, isDone ? "open" : "done");
+  async function onToggle() {
+    const next = isDone ? "open" : "done";
+    setStatus(next);
+    try {
+      await toggleTaskStatus(entry.id, next);
       router.refresh();
-    });
+    } catch {
+      setStatus(entry.status);
+    }
   }
 
-  function onDelete() {
-    start(async () => {
+  async function onDelete() {
+    setRemoved(true);
+    try {
       await deleteEntry(entry.id);
       router.refresh();
-    });
+    } catch {
+      setRemoved(false);
+    }
   }
+
+  if (removed) return null;
 
   return (
     <div className={`card ${variant === "alt" ? "alt" : ""} ${delayClass ?? ""}`.trim()}>
@@ -51,7 +65,6 @@ export function EntryCard({
           <button
             type="button"
             className={`check ${isDone ? "done" : ""}`}
-            disabled={pending}
             onClick={onToggle}
             aria-label={isDone ? "mark open" : "mark done"}
           >
@@ -61,8 +74,13 @@ export function EntryCard({
         <div className="flex-1">
           <div className={`t ${isDone ? "done" : ""}`}>{entry.title}</div>
           {entry.body && <div className="b">{entry.body}</div>}
+          {entry.needs_review && (
+            <div className="chips">
+              <span className="chip warn">needs review</span>
+            </div>
+          )}
           <div className={`meta ${overdue ? "overdue" : ""}`}>
-            <span>{TYPE_LABEL[entry.type]}</span>
+            <span className="meta-type">{TYPE_LABEL[entry.type]}</span>
             <span>·</span>
             <span>{entry.category}</span>
             {entry.amount !== null && (
@@ -89,7 +107,6 @@ export function EntryCard({
         <button
           type="button"
           onClick={onDelete}
-          disabled={pending}
           aria-label="delete entry"
           className="text-[color:var(--muted)] text-[13px]"
         >
