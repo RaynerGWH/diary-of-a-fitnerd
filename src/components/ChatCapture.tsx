@@ -281,15 +281,7 @@ export function ChatCapture({
         type="button"
         onClick={handleRestart}
         disabled={bubbles.length === 0}
-        className="sub"
-        style={{
-          fontSize: 13,
-          background: "none",
-          border: "none",
-          padding: 0,
-          cursor: bubbles.length === 0 ? "default" : "pointer",
-          opacity: bubbles.length === 0 ? 0.5 : 1,
-        }}
+        className="restart-chat-btn"
       >
         restart chat
       </button>
