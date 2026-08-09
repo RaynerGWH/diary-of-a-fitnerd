@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toggleTaskStatus, deleteEntry } from "@/app/entries/actions";
+import { toggleTaskStatus, deleteEntry, updateEntry } from "@/app/entries/actions";
 import { formatRelative, formatDueDate } from "@/lib/format";
+import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { Entry, EntryStatus } from "@/lib/db/types";
 
 const TYPE_LABEL: Record<Entry["type"], string> = {
   task: "task",
-  note: "note",
   log: "log",
   event: "event",
 };
@@ -23,23 +23,29 @@ export function EntryCard({
   delayClass?: string;
 }) {
   const router = useRouter();
-  // Optimistic: flip instantly on click, reconcile with the server in the
-  // background instead of waiting on the round trip before updating anything.
+  const [localEntry, setLocalEntry] = useState(entry);
   const [status, setStatus] = useState<EntryStatus | null>(entry.status);
   const [removed, setRemoved] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<EditForm>(() => formFromEntryLike(entry));
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => setStatus(entry.status), [entry.status]);
+  useEffect(() => {
+    setLocalEntry(entry);
+    setStatus(entry.status);
+  }, [entry]);
 
-  const isTask = entry.type === "task";
+  const isTask = localEntry.type === "task";
   const isDone = status === "done";
   const overdue =
-    isTask && !isDone && entry.due_at !== null && new Date(entry.due_at) < new Date();
+    isTask && !isDone && localEntry.due_at !== null && new Date(localEntry.due_at) < new Date();
 
   async function onToggle() {
     const next = isDone ? "open" : "done";
     setStatus(next);
     try {
-      await toggleTaskStatus(entry.id, next);
+      await toggleTaskStatus(localEntry.id, next);
       router.refresh();
     } catch {
       setStatus(entry.status);
@@ -49,10 +55,36 @@ export function EntryCard({
   async function onDelete() {
     setRemoved(true);
     try {
-      await deleteEntry(entry.id);
+      await deleteEntry(localEntry.id);
       router.refresh();
     } catch {
       setRemoved(false);
+    }
+  }
+
+  function startEdit() {
+    setForm(formFromEntryLike(localEntry));
+    setSaveError(null);
+    setEditing(true);
+  }
+
+  async function onSave() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const fields = fieldsFromForm(form);
+      const updated = await updateEntry(localEntry.id, {
+        ...fields,
+        title: fields.title || localEntry.title,
+      });
+      setLocalEntry(updated);
+      setStatus(updated.status);
+      setEditing(false);
+      router.refresh();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "couldn't save that, try again");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -60,59 +92,96 @@ export function EntryCard({
 
   return (
     <div className={`card ${variant === "alt" ? "alt" : ""} ${delayClass ?? ""}`.trim()}>
-      <div className="entry">
-        {isTask ? (
-          <button
-            type="button"
-            className={`check ${isDone ? "done" : ""}`}
-            onClick={onToggle}
-            aria-label={isDone ? "mark open" : "mark done"}
-          >
-            {isDone ? "✓" : ""}
-          </button>
-        ) : null}
-        <div className="flex-1">
-          <div className={`t ${isDone ? "done" : ""}`}>{entry.title}</div>
-          {entry.body && <div className="b">{entry.body}</div>}
-          {entry.needs_review && (
-            <div className="chips">
-              <span className="chip warn">needs review</span>
-            </div>
-          )}
-          <div className={`meta ${overdue ? "overdue" : ""}`}>
-            <span className="meta-type">{TYPE_LABEL[entry.type]}</span>
-            <span>·</span>
-            <span>{entry.category}</span>
-            {entry.amount !== null && (
-              <>
-                <span>·</span>
-                <span>
-                  {entry.currency ?? ""} {entry.amount}
-                </span>
-              </>
-            )}
-            {isTask && entry.due_at ? (
-              <>
-                <span>·</span>
-                <span>{overdue ? "overdue" : `due ${formatDueDate(entry.due_at)}`}</span>
-              </>
-            ) : (
-              <>
-                <span>·</span>
-                <span>{formatRelative(entry.occurred_at)}</span>
-              </>
-            )}
+      {editing ? (
+        <div className="flex flex-col gap-3">
+          <EntryEditForm form={form} onChange={setForm} />
+
+          {saveError && <div className="text-[13px] text-[color:var(--urgent)]">{saveError}</div>}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="sticker-btn primary"
+              onClick={onSave}
+              disabled={saving || !form.title.trim()}
+            >
+              {saving ? "saving..." : "save"}
+            </button>
+            <button
+              type="button"
+              className="sticker-btn"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+            >
+              cancel
+            </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={onDelete}
-          aria-label="delete entry"
-          className="text-[color:var(--muted)] text-[13px]"
-        >
-          ✕
-        </button>
-      </div>
+      ) : (
+        <div className="entry">
+          {isTask ? (
+            <button
+              type="button"
+              className={`check ${isDone ? "done" : ""}`}
+              onClick={onToggle}
+              aria-label={isDone ? "mark open" : "mark done"}
+            >
+              {isDone ? "✓" : ""}
+            </button>
+          ) : null}
+          <div className="flex-1">
+            <div className={`t ${isDone ? "done" : ""}`}>{localEntry.title}</div>
+            {localEntry.body && <div className="b">{localEntry.body}</div>}
+            {localEntry.needs_review && (
+              <div className="chips">
+                <span className="chip warn">needs review</span>
+              </div>
+            )}
+            <div className={`meta ${overdue ? "overdue" : ""}`}>
+              <span className="meta-type">{TYPE_LABEL[localEntry.type]}</span>
+              <span>·</span>
+              <span>{localEntry.category}</span>
+              {localEntry.amount !== null && (
+                <>
+                  <span>·</span>
+                  <span>
+                    {localEntry.currency ?? ""} {localEntry.amount}
+                  </span>
+                </>
+              )}
+              {isTask && localEntry.due_at ? (
+                <>
+                  <span>·</span>
+                  <span>{overdue ? "overdue" : `due ${formatDueDate(localEntry.due_at)}`}</span>
+                </>
+              ) : (
+                <>
+                  <span>·</span>
+                  <span>{formatRelative(localEntry.occurred_at)}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={startEdit}
+              aria-label="edit entry"
+              className="text-[color:var(--muted)] text-[13px]"
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              aria-label="delete entry"
+              className="text-[color:var(--muted)] text-[13px]"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
