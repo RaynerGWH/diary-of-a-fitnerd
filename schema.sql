@@ -28,14 +28,15 @@ create table if not exists public.profiles (
 -- other) rather than an enum, so new categories never need a migration.
 -- status/due_at apply to tasks only; amount/currency to expenditure entries.
 -- ------------------------------------------------------------
--- ENTRIES: the atomic unit. A task, a note, a log, or an event.
+-- ENTRIES: the atomic unit. A task, a log, or an event. ("note" and
+-- "log" were never meaningfully distinct, so there's just "log".)
 -- category is freeform text (school | work | ra | gym | diet |
 -- expenditure | other) so new categories never need a migration.
 -- ------------------------------------------------------------
 create table if not exists public.entries (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references public.profiles(id) on delete cascade,
-  type         text not null check (type in ('task','note','log','event')),
+  type         text not null check (type in ('task','log','event')),
   category     text not null default 'other',
   title        text not null,
   body         text,

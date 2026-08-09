@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import type { EntryStatus } from "@/lib/db/types";
+import type { Entry, EntryStatus, EntryType } from "@/lib/db/types";
 
 export async function toggleTaskStatus(entryId: string, next: EntryStatus) {
   const supabase = await createClient();
@@ -34,4 +34,80 @@ export async function deleteEntry(entryId: string) {
 
   revalidatePath("/");
   revalidatePath("/entries");
+}
+
+export type EntryEditFields = {
+  type: EntryType;
+  category: string;
+  title: string;
+  body: string | null;
+  dueAt: string | null;
+  amount: number | null;
+  currency: string | null;
+  // Optional: only set when the status itself should change (e.g. a chat
+  // edit that says "mark as done"). Omitted by EntryCard's inline edit,
+  // which leaves status alone and lets the dedicated toggle handle it.
+  status?: EntryStatus | null;
+};
+
+export async function updateEntry(entryId: string, fields: EntryEditFields): Promise<Entry> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("not signed in");
+
+  const update: Record<string, unknown> = {
+    type: fields.type,
+    category: fields.category,
+    title: fields.title,
+    body: fields.body,
+    due_at: fields.type === "task" ? fields.dueAt : null,
+    amount: fields.amount,
+    currency: fields.currency,
+    updated_at: new Date().toISOString(),
+  };
+  if (fields.status !== undefined) update.status = fields.status;
+
+  const { data, error } = await supabase
+    .from("entries")
+    .update(update)
+    .eq("id", entryId)
+    .eq("user_id", user.id)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath("/entries");
+  return data as Entry;
+}
+
+// Used when a chat-based edit can't find a matching entry: rather than
+// silently dropping the message, the user gets a prefilled "log this as new
+// instead?" form (see ChatCapture's PendingEditCard) that creates via this.
+export async function createEntryFromFields(fields: EntryEditFields): Promise<Entry> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("not signed in");
+
+  const { data, error } = await supabase
+    .from("entries")
+    .insert({
+      user_id: user.id,
+      type: fields.type,
+      category: fields.category,
+      title: fields.title,
+      body: fields.body,
+      status: fields.type === "task" ? "open" : null,
+      due_at: fields.type === "task" ? fields.dueAt : null,
+      occurred_at: new Date().toISOString(),
+      amount: fields.amount,
+      currency: fields.currency,
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath("/entries");
+  return data as Entry;
 }

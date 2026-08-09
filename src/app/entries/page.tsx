@@ -7,7 +7,7 @@ import { getCurrentProfile } from "@/lib/auth/current-user";
 import { getEntries } from "@/lib/db/queries";
 import type { EntryType } from "@/lib/db/types";
 
-const VALID_TYPES: EntryType[] = ["task", "note", "log", "event"];
+const VALID_TYPES: EntryType[] = ["task", "log", "event"];
 
 export default async function EntriesPage({
   searchParams,
@@ -23,8 +23,6 @@ export default async function EntriesPage({
 
   return (
     <PhoneFrame nav={<BottomNav active="entries" />}>
-      <div className="sub">everything you&apos;ve logged</div>
-
       <EntriesFilterBar />
 
       {entries.length === 0 ? (

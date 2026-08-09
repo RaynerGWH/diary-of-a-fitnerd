@@ -14,7 +14,7 @@ const GREETINGS = [
   "Back again, Rayner.",
   "Hey, rg.",
   "Life's a bitch, but that's okay.",
-  "Bababooey.",
+  "Bababooey!",
 ];
 
 export function HomeGreeting() {

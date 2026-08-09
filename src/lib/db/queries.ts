@@ -13,10 +13,12 @@ function endOfToday(): Date {
   return d;
 }
 
-// No-due-date tasks are included too: undated tasks still need to surface somewhere.
-// Open tasks due today or overdue, plus open tasks with no due date at all.
-// This is the "what should I look at right now" list on the home screen.
-export async function getTodayTasks(userId: UUID): Promise<Entry[]> {
+// Every open task, regardless of due date — genuinely "outstanding", not
+// just "due today or overdue or undated" (that narrower set used to be what
+// this returned, which silently hid anything due in the future from the
+// "outstanding tasks" section on home). Soonest-due first, undated tasks
+// last since they carry no urgency signal.
+export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("entries")
@@ -24,7 +26,6 @@ export async function getTodayTasks(userId: UUID): Promise<Entry[]> {
     .eq("user_id", userId)
     .eq("type", "task")
     .eq("status", "open")
-    .or(`due_at.is.null,due_at.lte.${endOfToday().toISOString()}`)
     .order("due_at", { ascending: true, nullsFirst: false });
   if (error) throw error;
   return (data as Entry[]) ?? [];
@@ -36,7 +37,7 @@ export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
     .from("entries")
     .select("*")
     .eq("user_id", userId)
-    .in("type", ["note", "log", "event"])
+    .in("type", ["log", "event"])
     .gte("occurred_at", startOfToday().toISOString())
     .lte("occurred_at", endOfToday().toISOString())
     .order("occurred_at", { ascending: false });
@@ -81,10 +82,38 @@ export async function getEntries(
   return (data as Entry[]) ?? [];
 }
 
-// Powers the /capture chat's visible history. A 3-hour window is enough to
-// pick back up a conversation after a reload without dragging in stale turns.
-export async function getRecentChatMessages(userId: UUID, hours = 3): Promise<ChatMessage[]> {
-  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+// Deterministic candidate lookup for chat-based edits: a plain keyword
+// search, not an LLM guessing from memory. The LLM only picks among these
+// results and decides what changed (see resolveEdit in lib/ai/parse-entry.ts).
+export async function searchEntriesForEdit(userId: UUID, query: string, limit = 5): Promise<Entry[]> {
+  const term = sanitizeSearchTerm(query.trim());
+  if (!term) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", userId)
+    .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
+    .order("occurred_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data as Entry[]) ?? [];
+}
+
+// The single definition of "still the same conversation": shared between
+// what /capture shows on load (below) and what counts as fresh-enough
+// context for the parser (chat-actions.ts). Kept short on purpose — coming
+// back after a gap to log something new shouldn't dump you back into a
+// stale old thread, and 15 minutes is already the parser's own cutoff for
+// treating a message as a continuation rather than something unrelated.
+export const CHAT_SESSION_WINDOW_MS = 15 * 60 * 1000;
+
+// Powers the /capture chat's visible history.
+export async function getRecentChatMessages(
+  userId: UUID,
+  windowMs = CHAT_SESSION_WINDOW_MS,
+): Promise<ChatMessage[]> {
+  const since = new Date(Date.now() - windowMs);
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("capture_chat")
