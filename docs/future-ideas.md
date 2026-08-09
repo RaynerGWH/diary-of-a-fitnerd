@@ -3,6 +3,8 @@
 Things explicitly deferred out of the chat-capture feature (2026-08-08), kept
 here so they don't get lost.
 
+- Ability to delete or edit entries in place. 
+- In the future, allow the user to edit or delete entries directly from the chat interface. This would require a more complex UI and additional backend support.
 - **Voice input.** Speech-to-text into the chat box. Dictated messages
   should probably get stricter confidence flagging than typed ones (typed
   text is already "in your tone" and needs less scrutiny).

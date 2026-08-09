@@ -28,18 +28,19 @@ Never commit real entries, real emails, or the `service_role` key.
   freeform-but-guided `category` (school / work / ra / gym / diet /
   expenditure / other, picked via chips in the capture UI). This keeps the
   schema simple now and avoids seven half-finished domain-specific tables.
-- **Capture is the core interaction.** `/capture` is a chat box: type
-  naturally, an LLM (via OpenRouter) parses it into an entry and saves it
-  immediately, no type/category picking required. Low-confidence parses get
-  a `needs_review` flag instead of a blocking confirm step, so capture never
-  waits on you. A follow-up message can correct the entry it just created.
-  The old chip-based form still exists at `/capture/manual` for edge cases
-  the parser gets wrong. See `docs/future-ideas.md` for what's deliberately
+- **Capture is the core interaction.** `/capture` is a chat box, the only
+  entry point (the old chip-based `/capture/manual` fallback was removed):
+  type naturally, an LLM (via OpenRouter) parses it into an entry and saves
+  it immediately, no type/category picking required. Low-confidence parses
+  get a `needs_review` flag instead of a blocking confirm step, so capture
+  never waits on you. A follow-up message, sent within 15 minutes, can
+  correct the entry it just created; a "restart chat" button lets you force
+  that boundary early. See `docs/future-ideas.md` for what's deliberately
   deferred (voice input, multi-entry messages, real reminders).
-- **Today view is the home screen.** Open tasks (due/overdue first, then
-  no-due-date) at the top, then everything logged today below. Planner-style,
-  not an infinite feed: the app should answer "what should I look at right
-  now."
+- **Home is the home screen**, not "today". Open tasks (due/overdue first,
+  then no-due-date) at the top, then everything logged today below,
+  filterable by category via chips. Planner-style, not an infinite feed:
+  the app should answer "what should I look at right now."
 - **No in-Postgres knowledge graph.** The real graph will live in **Neo4j**,
   populated from `entries` (and later an extraction pass) once there's enough
   data to make graphing worthwhile. Postgres stays a plain relational store,
@@ -56,7 +57,7 @@ Never commit real entries, real emails, or the `service_role` key.
 **v1 (build now)**
 1. Email+password auth, allow-list gated → `/denied` for anyone else. No self-serve sign-up; the one account is created by hand in the Supabase Dashboard.
 2. Today view: open tasks + today's notes/logs + streak/open-count stats.
-3. Capture flow: chat box → LLM parses into an entry → auto-saved, flagged if uncertain. `/capture/manual` keeps the old type → category chip → title/body → save form as a fallback.
+3. Capture flow: chat box → LLM parses into an entry → auto-saved, flagged if uncertain.
 4. Entries/timeline: browse everything, filter by category.
 
 **v2 (later, schema already supports it)**

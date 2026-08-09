@@ -6,10 +6,23 @@ import { ChatCapture } from "@/components/ChatCapture";
 import { getCurrentProfile } from "@/lib/auth/current-user";
 import { getRecentChatMessages } from "@/lib/db/queries";
 
-function greetingFor(name: string): string {
-  const hour = new Date().getHours();
-  const part = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
-  return `Good ${part}, ${name}! What's up?`;
+// Picked fresh on every render (Server Component, so every time /capture
+// loads), same pattern as HomeGreeting: reads like someone's actually there,
+// instead of a templated "Good morning, {name}!" (which, with no
+// display_name set, fell back to the email's local part).
+const GREETINGS = [
+  "What's up, Rayner?",
+  "Late night log?",
+  "Back at it?",
+  "What's on your mind?",
+  "Go ahead, I'm listening.",
+  "Tell me what happened.",
+  "What are we logging?",
+  "Ready when you are.",
+];
+
+function pickGreeting(): string {
+  return GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
 }
 
 export default async function CapturePage() {
@@ -17,12 +30,11 @@ export default async function CapturePage() {
   if (!profile) redirect("/login");
 
   const messages = await getRecentChatMessages(profile.id);
-  const name = profile.display_name ?? profile.email.split("@")[0];
 
   return (
     <PhoneFrame>
       <Header subtitle="tell me what's up" />
-      <ChatCapture initialMessages={messages} greeting={greetingFor(name)} />
+      <ChatCapture initialMessages={messages} greeting={pickGreeting()} />
       <BottomNav active="capture" />
     </PhoneFrame>
   );
