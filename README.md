@@ -134,8 +134,8 @@ Sidenote: I used OpenRouter because I wanted the ability to choose smaller, chea
 You need a Supabase project and an OpenRouter key.
 
 ```bash
-git clone https://github.com/<< your-username >>/<< repo >>.git
-cd << repo >>
+git clone https://github.com/RaynerGWH/diary-of-a-fitnerd.git
+cd diary-of-a-fitnerd
 npm install
 cp .env.example .env.local
 ```
