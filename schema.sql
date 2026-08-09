@@ -148,6 +148,7 @@ create trigger on_auth_user_created
 -- Everything is private to its owner. No shared-read policies:
 -- unlike Fitnerds, this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
+alter table public.allowed_emails enable row level security;
 alter table public.profiles      enable row level security;
 alter table public.entries       enable row level security;
 alter table public.tags          enable row level security;
@@ -181,6 +182,11 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
 -- service_role key (bot webhook, server-side only) may touch this table.
 -- telegram_inbox: no client policies. Only the service_role key (bot webhook,
 -- server-side only) touches this table. Deliberately no "authenticated" policy.
+
+-- allowed_emails likewise has no client policies. Without RLS it would be
+-- world-readable through PostgREST (the anon key is public), handing out the
+-- owner's real email. handle_new_user() still reads it fine: that function is
+-- `security definer`, so it bypasses RLS.
 
 create policy "read own capture_chat" on public.capture_chat for select to authenticated
   using (user_id = auth.uid());

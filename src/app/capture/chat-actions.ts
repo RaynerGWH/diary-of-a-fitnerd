@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAllowedUser } from "@/lib/auth/require-user";
 import { parseMessage, resolveEdit, type ChatTurn, type EditCandidate } from "@/lib/ai/parse-entry";
 import { searchEntriesForEdit, CHAT_SESSION_WINDOW_MS } from "@/lib/db/queries";
 import type { EntryEditFields } from "@/app/entries/actions";
@@ -14,10 +15,15 @@ const CONTEXT_ROWS = 6;
 
 const EDIT_CANDIDATE_LIMIT = 5;
 
+// Nothing typed by hand into a capture box comes close to this. It exists to
+// bound what a single request can cost: `message` is forwarded to a paid LLM
+// call, so an unbounded string is an unbounded bill.
+const MAX_MESSAGE_LENGTH = 2000;
+
 // Edits never auto-apply: the model proposes, the user confirms (and can
 // tweak the fields first) via PendingEditCard in ChatCapture. "new-fallback"
 // covers both "couldn't find a match" and "found candidates but wasn't
-// confident in any of them" — same UI either way, prefilled as a new entry
+// confident in any of them": same UI either way, prefilled as a new entry
 // instead of an update.
 export type PendingEdit =
   | { kind: "edit"; entryId: string; currentTitle: string; fields: EntryEditFields }
@@ -44,12 +50,11 @@ export async function sendCaptureMessage(
 ): Promise<SendCaptureMessageResult> {
   const text = message.trim();
   if (!text) throw new Error("message is required");
+  if (text.length > MAX_MESSAGE_LENGTH) throw new Error("message is too long");
 
+  // Before the OpenRouter call below, not after: see requireAllowedUser.
+  const user = await requireAllowedUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
 
   // `after`: set when the user hit "restart chat". Excludes everything before
   // that moment from context, same as the staleness cutoff below but drawn

@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireAllowedUser } from "@/lib/auth/require-user";
 import type { Entry, EntryStatus, EntryType } from "@/lib/db/types";
 
 export async function toggleTaskStatus(entryId: string, next: EntryStatus) {
+  const user = await requireAllowedUser();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
 
   const { error } = await supabase
     .from("entries")
@@ -21,9 +21,8 @@ export async function toggleTaskStatus(entryId: string, next: EntryStatus) {
 }
 
 export async function deleteEntry(entryId: string) {
+  const user = await requireAllowedUser();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
 
   const { error } = await supabase
     .from("entries")
@@ -51,9 +50,8 @@ export type EntryEditFields = {
 };
 
 export async function updateEntry(entryId: string, fields: EntryEditFields): Promise<Entry> {
+  const user = await requireAllowedUser();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
 
   const update: Record<string, unknown> = {
     type: fields.type,
@@ -85,9 +83,8 @@ export async function updateEntry(entryId: string, fields: EntryEditFields): Pro
 // silently dropping the message, the user gets a prefilled "log this as new
 // instead?" form (see ChatCapture's PendingEditCard) that creates via this.
 export async function createEntryFromFields(fields: EntryEditFields): Promise<Entry> {
+  const user = await requireAllowedUser();
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("not signed in");
 
   const { data, error } = await supabase
     .from("entries")
