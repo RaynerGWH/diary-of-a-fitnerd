@@ -129,7 +129,19 @@ export function EntryCard({
               {isDone ? "✓" : ""}
             </button>
           ) : null}
-          <div className="flex-1">
+          <div
+            className="flex-1 entry-content"
+            onClick={startEdit}
+            role="button"
+            tabIndex={0}
+            aria-label={`edit ${localEntry.title}`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                startEdit();
+              }
+            }}
+          >
             <div className={`t ${isDone ? "done" : ""}`}>{localEntry.title}</div>
             {localEntry.body && <div className="b">{localEntry.body}</div>}
             {localEntry.needs_review && (
@@ -162,24 +174,14 @@ export function EntryCard({
               )}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <button
-              type="button"
-              onClick={startEdit}
-              aria-label="edit entry"
-              className="text-[color:var(--muted)] text-[13px]"
-            >
-              ✎
-            </button>
-            <button
-              type="button"
-              onClick={onDelete}
-              aria-label="delete entry"
-              className="text-[color:var(--muted)] text-[13px]"
-            >
-              ✕
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="delete entry"
+            className="text-[color:var(--urgent)] text-[13px]"
+          >
+            ✕
+          </button>
         </div>
       )}
     </div>
