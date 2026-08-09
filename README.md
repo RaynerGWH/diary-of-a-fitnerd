@@ -200,8 +200,3 @@ main                         production. always deployable.
 
 [MIT](LICENSE). Use it, fork it, learn from it, build on it. The code is
 yours to take; the data was never in here to begin with.
-
----
-
-<< Optional closing line: who you are, and a link to the rest of your work. A
-reader who got this far is interested. >>
