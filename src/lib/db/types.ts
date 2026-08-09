@@ -35,6 +35,7 @@ export type Entry = {
   amount: number | null;
   currency: string | null;
   source: EntrySource;
+  needs_review: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -43,4 +44,15 @@ export type Tag = {
   id: UUID;
   user_id: UUID;
   name: string;
+};
+
+export type ChatRole = "user" | "assistant";
+
+export type ChatMessage = {
+  id: UUID;
+  user_id: UUID;
+  role: ChatRole;
+  content: string;
+  entry_id: UUID | null;
+  created_at: string;
 };

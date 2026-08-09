@@ -1,9 +1,13 @@
-import type { ReactNode } from "react";
+import { forwardRef, type ReactNode } from "react";
 
-export function PhoneFrame({ children }: { children: ReactNode }) {
+export const PhoneFrame = forwardRef<
+  HTMLDivElement,
+  { children: ReactNode; nav?: ReactNode; className?: string }
+>(function PhoneFrame({ children, nav, className }, ref) {
   return (
-    <div className="phone">
+    <div ref={ref} className={`phone ${className ?? ""}`.trim()}>
       <div className="stack">{children}</div>
+      {nav}
     </div>
   );
-}
+});

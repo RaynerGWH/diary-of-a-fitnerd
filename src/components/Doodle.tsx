@@ -13,8 +13,8 @@ function base({ size = 22, children, ...rest }: IconProps & { children: React.Re
 export const HomeIcon = (p: IconProps) =>
   base({ ...p, children: <path className="doodle" d="M4 11l8-7 8 7M6 10v9h12v-9" /> });
 
-export const PlusIcon = (p: IconProps) =>
-  base({ ...p, children: <path className="doodle" d="M12 5v14M5 12h14" /> });
+export const MessageIcon = (p: IconProps) =>
+  base({ ...p, children: <path className="doodle" d="M4 5h16v10H9l-4 4v-4H4z" /> });
 
 export const ListIcon = (p: IconProps) =>
   base({
@@ -24,3 +24,17 @@ export const ListIcon = (p: IconProps) =>
 
 export const PulseIcon = (p: IconProps) =>
   base({ ...p, children: <path className="doodle" d="M4 12h3l2-6 4 13 3-8 2 3h2" /> });
+
+export const CactusIcon = (p: IconProps) =>
+  base({
+    ...p,
+    children: (
+      <>
+        <path
+          className="doodle cactus-icon"
+          d="M9.5 20V9.5c0-2.5 1.1-4.5 2.5-4.5s2.5 2 2.5 4.5V20M9.5 15.5c-2.6.3-4.3-1.3-4.3-3.5 0-2 1.5-3.5 3.4-3.3M14.5 12.5c2.6.3 4.3-1.3 4.3-3.3 0-1.9-1.5-3.4-3.4-3.2M5 20h14"
+        />
+        <circle className="cactus-flower" cx="12" cy="4.5" r="1.5" />
+      </>
+    ),
+  });

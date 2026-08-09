@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Entry, EntryType, UUID } from "./types";
+import type { ChatMessage, Entry, EntryType, UUID } from "./types";
 
 function startOfToday(): Date {
   const d = new Date();
@@ -56,70 +56,43 @@ export async function getRecentEntries(userId: UUID, limit = 20): Promise<Entry[
   return (data as Entry[]) ?? [];
 }
 
+// Strips characters that are syntactically meaningful to PostgREST's filter
+// grammar (would otherwise let a search term like "a,b" inject an extra
+// `.or()` condition) and escapes ILIKE wildcards so they match literally.
+function sanitizeSearchTerm(term: string): string {
+  return term.replace(/[,()]/g, "").replace(/[%_\\]/g, (m) => `\\${m}`);
+}
+
 export async function getEntries(
   userId: UUID,
-  opts: { category?: string; type?: EntryType; limit?: number } = {},
+  opts: { category?: string; type?: EntryType; search?: string; limit?: number } = {},
 ): Promise<Entry[]> {
   const supabase = await createClient();
   let q = supabase.from("entries").select("*").eq("user_id", userId);
   if (opts.category) q = q.eq("category", opts.category);
   if (opts.type) q = q.eq("type", opts.type);
+  if (opts.search?.trim()) {
+    const term = sanitizeSearchTerm(opts.search.trim());
+    q = q.or(`title.ilike.%${term}%,body.ilike.%${term}%`);
+  }
   q = q.order("occurred_at", { ascending: false }).limit(opts.limit ?? 50);
   const { data, error } = await q;
   if (error) throw error;
   return (data as Entry[]) ?? [];
 }
 
-export async function getOpenTaskCount(userId: UUID): Promise<number> {
+// Powers the /capture chat's visible history. A 3-hour window is enough to
+// pick back up a conversation after a reload without dragging in stale turns.
+export async function getRecentChatMessages(userId: UUID, hours = 3): Promise<ChatMessage[]> {
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
   const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("entries")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("type", "task")
-    .eq("status", "open");
-  if (error) throw error;
-  return count ?? 0;
-}
-
-// Uses the user's *local* date, not UTC, so the streak matches what they actually see.
-export async function getDayStreak(userId: UUID): Promise<number> {
-  const supabase = await createClient();
-  const since = new Date();
-  since.setDate(since.getDate() - 60);
   const { data, error } = await supabase
-    .from("entries")
-    .select("occurred_at")
+    .from("capture_chat")
+    .select("*")
     .eq("user_id", userId)
-    .gte("occurred_at", since.toISOString())
-    .order("occurred_at", { ascending: false });
+    .gte("created_at", since.toISOString())
+    .order("created_at", { ascending: true });
   if (error) throw error;
-
-  const days = new Set<string>();
-  for (const row of (data as { occurred_at: string }[] | null) ?? []) {
-    const d = new Date(row.occurred_at);
-    days.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`);
-  }
-  let streak = 0;
-  const cursor = new Date();
-  while (true) {
-    const key = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
-    if (days.has(key)) {
-      streak += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      // Allow today to be empty (only break the streak if yesterday is empty too).
-      if (streak === 0) {
-        cursor.setDate(cursor.getDate() - 1);
-        const yKey = `${cursor.getFullYear()}-${cursor.getMonth()}-${cursor.getDate()}`;
-        if (days.has(yKey)) {
-          streak = 1;
-          cursor.setDate(cursor.getDate() - 1);
-          continue;
-        }
-      }
-      break;
-    }
-  }
-  return streak;
+  return (data as ChatMessage[]) ?? [];
 }
+

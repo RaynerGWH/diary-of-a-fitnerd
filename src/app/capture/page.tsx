@@ -1,19 +1,38 @@
 import { redirect } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
-import { CaptureForm } from "@/components/CaptureForm";
+import { ChatCapture } from "@/components/ChatCapture";
 import { getCurrentProfile } from "@/lib/auth/current-user";
+import { getRecentChatMessages } from "@/lib/db/queries";
+
+// Picked fresh on every render (Server Component, so every time /capture
+// loads), same pattern as HomeGreeting: reads like someone's actually there,
+// instead of a templated "Good morning, {name}!" (which, with no
+// display_name set, fell back to the email's local part).
+const GREETINGS = [
+  "What's up, Rayner?",
+  "Late night log?",
+  "Back at it?",
+  "What's on your mind?",
+  "Go ahead, I'm listening.",
+  "Tell me what happened.",
+  "What are we logging?",
+  "Ready when you are.",
+];
+
+function pickGreeting(): string {
+  return GREETINGS[Math.floor(Math.random() * GREETINGS.length)];
+}
 
 export default async function CapturePage() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
 
+  const messages = await getRecentChatMessages(profile.id);
+
   return (
-    <PhoneFrame>
-      <Header subtitle="log it before it scatters" />
-      <CaptureForm />
-      <BottomNav active="capture" />
+    <PhoneFrame nav={<BottomNav active="capture" />}>
+      <ChatCapture initialMessages={messages} greeting={pickGreeting()} />
     </PhoneFrame>
   );
 }

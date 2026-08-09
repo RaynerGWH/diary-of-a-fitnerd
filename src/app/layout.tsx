@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Shantell_Sans, Caveat } from "next/font/google";
+import { Newsreader, Inter } from "next/font/google";
 import "./globals.css";
 
-const shantell = Shantell_Sans({
+const newsreader = Newsreader({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-shantell",
+  weight: ["400", "500", "600"],
+  variable: "--font-newsreader",
   display: "swap",
 });
-const caveat = Caveat({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["500", "700"],
-  variable: "--font-caveat",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -41,7 +41,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${shantell.variable} ${caveat.variable}`}>
+    <html lang="en" className={`${newsreader.variable} ${inter.variable}`}>
       <body className="flex items-center justify-center">
         {children}
       </body>
