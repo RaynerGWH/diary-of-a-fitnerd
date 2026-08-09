@@ -24,19 +24,23 @@ Never commit real entries, real emails, or the `service_role` key.
   emails later without a redesign, same pattern as the app's fitness-app
   predecessor, just pointed at one person for now).
 - **One unified `entries` table** is the atomic unit, not separate tables
-  per domain. An entry has a `type` (`task | note | log | event`) and a
+  per domain. An entry has a `type` (`task | log | event`; "note" was
+  merged into "log" since they were never meaningfully distinct) and a
   freeform-but-guided `category` (school / work / ra / gym / diet /
   expenditure / other, picked via chips in the capture UI). This keeps the
   schema simple now and avoids seven half-finished domain-specific tables.
 - **Capture is the core interaction.** `/capture` is a chat box, the only
   entry point (the old chip-based `/capture/manual` fallback was removed):
-  type naturally, an LLM (via OpenRouter) parses it into an entry and saves
-  it immediately, no type/category picking required. Low-confidence parses
-  get a `needs_review` flag instead of a blocking confirm step, so capture
-  never waits on you. A follow-up message, sent within 15 minutes, can
-  correct the entry it just created; a "restart chat" button lets you force
-  that boundary early. See `docs/future-ideas.md` for what's deliberately
-  deferred (voice input, multi-entry messages, real reminders).
+  type naturally, an LLM (via OpenRouter) parses it into one or more entries
+  and saves them immediately, no type/category picking required ("pay rent
+  and call mom tomorrow" becomes two tasks). Low-confidence parses get a
+  `needs_review` flag instead of a blocking confirm step, so capture never
+  waits on you. A follow-up message can edit any existing entry by
+  description, any time, not just the one just created: the parser detects
+  edit intent, a deterministic keyword search finds candidates, and the LLM
+  only picks among those rather than guessing from memory. Entries are also
+  editable in place from `/entries` and `/`. See `docs/future-ideas.md` for
+  what's still deliberately deferred (voice input, real reminders).
 - **Home is the home screen**, not "today". Open tasks (due/overdue first,
   then no-due-date) at the top, then everything logged today below,
   filterable by category via chips. Planner-style, not an infinite feed:
@@ -56,7 +60,7 @@ Never commit real entries, real emails, or the `service_role` key.
 
 **v1 (build now)**
 1. Email+password auth, allow-list gated → `/denied` for anyone else. No self-serve sign-up; the one account is created by hand in the Supabase Dashboard.
-2. Today view: open tasks + today's notes/logs + streak/open-count stats.
+2. Home view: open tasks + today's notes/logs, filterable by category.
 3. Capture flow: chat box → LLM parses into an entry → auto-saved, flagged if uncertain.
 4. Entries/timeline: browse everything, filter by category.
 
@@ -65,7 +69,6 @@ Never commit real entries, real emails, or the `service_role` key.
   an `entries` row.
 - Export/sync `entries` (+ tags) into a Neo4j graph; explore connections
   between tasks, notes, and events instead of just a flat list.
-- Editing entries in place (v1 only supports create / toggle-done / delete).
 - Tag management UI (the `tags` + `entry_tags` tables exist; no UI yet).
 
 ## Data model (see `schema.sql` for the real thing)
@@ -80,8 +83,9 @@ Never commit real entries, real emails, or the `service_role` key.
 - `telegram_inbox`: raw bot messages land here before becoming an entry.
   Server-side only (`service_role`), no client RLS policy.
 - `capture_chat`: transcript behind the `/capture` chat UI (role, content,
-  linked `entry_id`). Read on page load for the last 3 hours; only the last
-  few rows are sent to the LLM as context per request.
+  linked `entry_id`). Read on page load for the last 15 minutes (same window
+  used to decide what's fresh enough to send the LLM as context); only the
+  last few rows within that window are sent per request.
 
 ## Design system
 

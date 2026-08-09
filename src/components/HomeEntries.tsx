@@ -7,6 +7,7 @@ import { CATEGORIES, type Entry } from "@/lib/db/types";
 
 export function HomeEntries({ tasks, logs }: { tasks: Entry[]; logs: Entry[] }) {
   const [category, setCategory] = useState<string | null>(null);
+  const [tasksExpanded, setTasksExpanded] = useState(true);
 
   const counts = new Map<string, number>();
   for (const e of [...tasks, ...logs]) {
@@ -40,18 +41,29 @@ export function HomeEntries({ tasks, logs }: { tasks: Entry[]; logs: Entry[] }) 
         ))}
       </div>
 
-      <div className="label d3">today&apos;s tasks</div>
-      {filteredTasks.length === 0 ? (
-        <div className="card alt d3">
-          <div className="text-[14px] text-[color:var(--muted)]">
-            {category ? "nothing here for this category." : "nothing due, nice, or add one above."}
+      <button
+        type="button"
+        className="label label-toggle d3"
+        onClick={() => setTasksExpanded((v) => !v)}
+        aria-expanded={tasksExpanded}
+      >
+        <span>outstanding tasks{filteredTasks.length > 0 ? ` (${filteredTasks.length})` : ""}</span>
+        <span className={`label-arrow ${tasksExpanded ? "open" : ""}`} aria-hidden="true">
+          &#9656;
+        </span>
+      </button>
+      {tasksExpanded &&
+        (filteredTasks.length === 0 ? (
+          <div className="card alt d3">
+            <div className="text-[14px] text-[color:var(--muted)]">
+              {category ? "nothing here for this category." : "nothing outstanding, nice, or add one above."}
+            </div>
           </div>
-        </div>
-      ) : (
-        filteredTasks.map((e, i) => (
-          <EntryCard key={e.id} entry={e} variant="alt" delayClass={`d${Math.min(6, 3 + i)}`} />
-        ))
-      )}
+        ) : (
+          filteredTasks.map((e, i) => (
+            <EntryCard key={e.id} entry={e} variant="alt" delayClass={`d${Math.min(6, 3 + i)}`} />
+          ))
+        ))}
 
       <div className="label d4">
         <PulseIcon size={20} />
@@ -60,7 +72,7 @@ export function HomeEntries({ tasks, logs }: { tasks: Entry[]; logs: Entry[] }) 
       {filteredLogs.length === 0 ? (
         <div className="card d4">
           <div className="text-[14px] text-[color:var(--muted)]">
-            {category ? "nothing here for this category." : "no notes or logs yet today."}
+            {category ? "nothing here for this category." : "nothing logged yet today."}
           </div>
         </div>
       ) : (

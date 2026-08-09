@@ -7,7 +7,7 @@ export type Profile = {
   created_at: string;
 };
 
-export type EntryType = "task" | "note" | "log" | "event";
+export type EntryType = "task" | "log" | "event";
 export type EntryStatus = "open" | "done" | "archived";
 export type EntrySource = "app" | "telegram";
 
