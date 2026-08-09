@@ -5,14 +5,16 @@ import { CactusIcon } from "./Doodle";
 // so it reads like someone's actually on the other end.
 const GREETINGS = [
   "Hey Rayner!",
-  "Yo, rg.",
+  "Yo rg!",
   "Look who's back.",
   "Alright rg, let's see it.",
   "Rayner. Good to see you.",
   "Ready when you are, Rayner.",
   "Let's get into it.",
-  "Back again, nice.",
-  "Hey hey, rg.",
+  "Back again, Rayner.",
+  "Hey, rg.",
+  "Life's a bitch, but that's okay.",
+  "Bababooey.",
 ];
 
 export function HomeGreeting() {

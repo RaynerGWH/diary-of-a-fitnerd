@@ -28,7 +28,12 @@ body {
   background:
     radial-gradient(circle at 1px 1px, rgba(32,32,30,.10) 1px, transparent 0) 0 0/22px 22px,
     var(--paper);
-  min-height: 100vh;
+  /* Fixed to the viewport (not min-height) so the phone frame below has a
+     stable box to size itself against instead of the whole page growing
+     with content. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   /* Safe-area aware so the centered phone frame clears the notch / home
      indicator when installed as a standalone PWA (viewport-fit: cover). */
   padding:
@@ -38,10 +43,14 @@ body {
     max(14px, env(safe-area-inset-left));
 }
 
-/* phone frame: the app lives in this on every page */
+/* phone frame: the app lives in this on every page. Fixed footprint (like
+   an actual phone screen) instead of growing/shrinking with content: only
+   .stack (and, within it, individual sections like .chat-thread) scrolls. */
 .phone {
   width: 100%;
   max-width: 392px;
+  height: 100%;
+  max-height: 860px;
   background: var(--cream);
   border: 3px solid var(--ink);
   border-radius: 38px;
@@ -49,6 +58,8 @@ body {
   padding: 18px 18px 14px;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .phone::before {
   content: "";
@@ -61,7 +72,27 @@ body {
   opacity: .7;
 }
 
-.stack { display: flex; flex-direction: column; gap: 16px; margin-top: 14px; }
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 14px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Scroll still works, the track/thumb just doesn't render, so scrolling
+   content inside the phone frame doesn't look like a desktop web page. */
+.stack,
+.chat-thread {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.stack::-webkit-scrollbar,
+.chat-thread::-webkit-scrollbar {
+  display: none;
+}
 
 /* hand-drawn card base */
 .card {
@@ -143,6 +174,7 @@ body {
 .entry .b { font-size: 13.5px; color: var(--muted); margin-top: 2px; white-space: pre-wrap; }
 .entry .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .entry .meta.overdue { color: var(--urgent); font-weight: 700; }
+.entry .meta .meta-type { color: var(--accent); font-weight: 700; }
 
 .check {
   flex: 0 0 auto;
@@ -187,6 +219,7 @@ body {
   display: flex;
   justify-content: space-around;
   align-items: center;
+  flex-shrink: 0;
   margin-top: 6px;
   padding-top: 10px;
   border-top: 2.5px dashed var(--ink);
@@ -276,8 +309,8 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-height: 240px;
-  max-height: 55vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 2px 2px 4px;
 }
@@ -315,6 +348,18 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
 
 .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
 .chat-input-row .field { flex: 1; }
+.chat-input-row textarea.field {
+  resize: none;
+  min-height: 0;
+  max-height: 120px;
+  overflow-y: auto;
+  line-height: 1.35;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chat-input-row textarea.field::-webkit-scrollbar {
+  display: none;
+}
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
 
@@ -338,6 +383,7 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
 .phone-welcome { background: #faf9f6; }
 .phone-welcome .stack {
   align-items: center;
+  justify-content: center;
   text-align: center;
   gap: 28px;
   margin-top: 0;
