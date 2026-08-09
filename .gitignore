@@ -41,3 +41,10 @@ next-env.d.ts
 
 # brainstorming visual companion working dir
 .superpowers/
+
+# private working notes: kept on disk, deliberately not part of the public
+# repo. these are build briefs and orientation notes for me, not documentation
+# for anyone reading the project (README.md is that).
+/CLAUDE.md
+/SPEC.md
+/docs/
