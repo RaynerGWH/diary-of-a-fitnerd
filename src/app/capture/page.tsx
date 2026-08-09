@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { ChatCapture } from "@/components/ChatCapture";
 import { getCurrentProfile } from "@/lib/auth/current-user";
@@ -32,10 +31,8 @@ export default async function CapturePage() {
   const messages = await getRecentChatMessages(profile.id);
 
   return (
-    <PhoneFrame>
-      <Header subtitle="tell me what's up" />
+    <PhoneFrame nav={<BottomNav active="capture" />}>
       <ChatCapture initialMessages={messages} greeting={pickGreeting()} />
-      <BottomNav active="capture" />
     </PhoneFrame>
   );
 }

@@ -80,7 +80,7 @@ export function EntryCard({
             </div>
           )}
           <div className={`meta ${overdue ? "overdue" : ""}`}>
-            <span>{TYPE_LABEL[entry.type]}</span>
+            <span className="meta-type">{TYPE_LABEL[entry.type]}</span>
             <span>·</span>
             <span>{entry.category}</span>
             {entry.amount !== null && (
