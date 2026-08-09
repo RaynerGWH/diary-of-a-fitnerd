@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
+import { shuffle } from "animejs";
 import { sendCaptureMessage } from "@/app/capture/chat-actions";
+import { CactusIcon } from "./Doodle";
 import type { ChatMessage } from "@/lib/db/types";
 
 type Bubble = {
@@ -11,6 +13,39 @@ type Bubble = {
   status: "sent" | "pending" | "failed";
   flagged?: boolean;
 };
+
+// Rotates through while a message is being parsed, instead of sitting on a
+// single static "logging..." the whole time.
+const PLAYFUL_VERBS = [
+  "mulling it over...",
+  "scribbling...",
+  "sorting the pile...",
+  "connecting the dots...",
+  "filing away...",
+  "deciphering...",
+  "tidying up...",
+  "cross-referencing...",
+  "double-checking...",
+  "categorizing...",
+  "making sense of it...",
+  "noodling...",
+  "penciling in...",
+  "triangulating...",
+  "bookkeeping...",
+  "parsing the vibes...",
+];
+
+function PendingLabel() {
+  const wordsRef = useRef(shuffle([...PLAYFUL_VERBS]));
+  const [i, setI] = useState(0);
+
+  useEffect(() => {
+    const id = setInterval(() => setI((n) => (n + 1) % wordsRef.current.length), 3000);
+    return () => clearInterval(id);
+  }, []);
+
+  return <span className="pending-word">{wordsRef.current[i]}</span>;
+}
 
 export function ChatCapture({
   initialMessages,
@@ -25,10 +60,19 @@ export function ChatCapture({
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
   const threadRef = useRef<HTMLDivElement>(null);
+  // Set when "restart chat" is pressed: excludes everything before this
+  // moment from the parser's context/correction target, on top of the
+  // server's own 15-minute staleness cutoff.
+  const restartedAfterRef = useRef<string | null>(null);
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
   }, [bubbles]);
+
+  function handleRestart() {
+    restartedAfterRef.current = new Date().toISOString();
+    setBubbles([]);
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,7 +90,10 @@ export function ChatCapture({
 
     startTransition(async () => {
       try {
-        const result = await sendCaptureMessage(text);
+        const result = await sendCaptureMessage(
+          text,
+          restartedAfterRef.current ? { after: restartedAfterRef.current } : undefined,
+        );
         setBubbles((prev) =>
           prev.map((b) =>
             b.id === pendingId
@@ -79,13 +126,18 @@ export function ChatCapture({
   return (
     <div className="card d1 flex flex-col gap-3">
       <div className="chat-thread" ref={threadRef}>
-        {bubbles.length === 0 && <div className="bubble assistant">{greeting}</div>}
+        {bubbles.length === 0 && (
+          <div className="chat-empty">
+            <CactusIcon size={36} />
+            <div className="chat-empty-text">{greeting}</div>
+          </div>
+        )}
         {bubbles.map((b) => (
           <div
             key={b.id}
             className={`bubble ${b.role} ${b.status !== "sent" ? b.status : ""}`.trim()}
           >
-            {b.content}
+            {b.status === "pending" ? <PendingLabel /> : b.content}
             {b.flagged && <span className="flag">not sure about this one, reply to fix it up</span>}
           </div>
         ))}
@@ -102,9 +154,22 @@ export function ChatCapture({
           send
         </button>
       </form>
-      <a href="/capture/manual" className="sub" style={{ fontSize: 13 }}>
-        manual entry &rarr;
-      </a>
+      <button
+        type="button"
+        onClick={handleRestart}
+        disabled={bubbles.length === 0}
+        className="sub"
+        style={{
+          fontSize: 13,
+          background: "none",
+          border: "none",
+          padding: 0,
+          cursor: bubbles.length === 0 ? "default" : "pointer",
+          opacity: bubbles.length === 0 ? 0.5 : 1,
+        }}
+      >
+        restart chat
+      </button>
     </div>
   );
 }

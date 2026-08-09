@@ -10,13 +10,23 @@ import type { ChatMessage, Entry } from "@/lib/db/types";
 // the whole visible (3-hour) history into every request's token cost.
 const CONTEXT_ROWS = 6;
 
+// Beyond this gap since the last message, treat it as a new, unrelated
+// conversation: don't feed old rows to the parser and don't offer the old
+// entry up for correction. Without this, a message sent hours ago (still
+// inside the 3-hour *visible* window) reads to the LLM as "the previous
+// turn", and it blends unrelated new entries into it.
+const CORRECTION_WINDOW_MS = 15 * 60 * 1000;
+
 export type SendCaptureMessageResult = {
   userMessage: ChatMessage;
   assistantMessage: ChatMessage;
   entry: Entry;
 };
 
-export async function sendCaptureMessage(message: string): Promise<SendCaptureMessageResult> {
+export async function sendCaptureMessage(
+  message: string,
+  opts: { after?: string } = {},
+): Promise<SendCaptureMessageResult> {
   const text = message.trim();
   if (!text) throw new Error("message is required");
 
@@ -26,17 +36,27 @@ export async function sendCaptureMessage(message: string): Promise<SendCaptureMe
   } = await supabase.auth.getUser();
   if (!user) throw new Error("not signed in");
 
-  const { data: recentRows, error: recentError } = await supabase
+  // `after`: set when the user hit "restart chat". Excludes everything before
+  // that moment from context/correction, same as the staleness cutoff below
+  // but drawn explicitly instead of by elapsed time.
+  let recentQuery = supabase
     .from("capture_chat")
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
     .limit(CONTEXT_ROWS);
+  if (opts.after) recentQuery = recentQuery.gt("created_at", opts.after);
+  const { data: recentRows, error: recentError } = await recentQuery;
   if (recentError) throw new Error(recentError.message);
 
   const recent = ((recentRows as ChatMessage[]) ?? []).slice().reverse();
-  const context: ChatTurn[] = recent.map((m) => ({ role: m.role, content: m.content }));
-  const lastEntryId = [...recent].reverse().find((m) => m.role === "assistant" && m.entry_id)?.entry_id ?? null;
+  const lastMessageAt = recent.length > 0 ? new Date(recent[recent.length - 1].created_at).getTime() : null;
+  const isStale = lastMessageAt === null || Date.now() - lastMessageAt > CORRECTION_WINDOW_MS;
+
+  const context: ChatTurn[] = isStale ? [] : recent.map((m) => ({ role: m.role, content: m.content }));
+  const lastEntryId = isStale
+    ? null
+    : [...recent].reverse().find((m) => m.role === "assistant" && m.entry_id)?.entry_id ?? null;
 
   const parsed = await parseMessage(text, context);
   const needsReview = parsed.uncertainFields.length > 0;

@@ -1,42 +1,32 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { EntryCard } from "@/components/EntryCard";
+import { EntriesFilterBar } from "@/components/EntriesFilterBar";
 import { getCurrentProfile } from "@/lib/auth/current-user";
 import { getEntries } from "@/lib/db/queries";
-import { CATEGORIES } from "@/lib/db/types";
+import type { EntryType } from "@/lib/db/types";
+
+const VALID_TYPES: EntryType[] = ["task", "note", "log", "event"];
 
 export default async function EntriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string }>;
+  searchParams: Promise<{ category?: string; type?: string; q?: string }>;
 }) {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
 
-  const { category } = await searchParams;
-  const entries = await getEntries(profile.id, { category, limit: 50 });
+  const { category, type, q } = await searchParams;
+  const validType = VALID_TYPES.includes(type as EntryType) ? (type as EntryType) : undefined;
+  const entries = await getEntries(profile.id, { category, type: validType, search: q, limit: 50 });
 
   return (
     <PhoneFrame>
       <Header subtitle="everything you've logged" />
 
-      <div className="chips">
-        <Link href="/entries" className={`chip ${!category ? "hi" : ""}`}>
-          all
-        </Link>
-        {CATEGORIES.map((c) => (
-          <Link
-            key={c}
-            href={`/entries?category=${c}`}
-            className={`chip ${category === c ? "hi" : ""}`}
-          >
-            {c}
-          </Link>
-        ))}
-      </div>
+      <EntriesFilterBar />
 
       {entries.length === 0 ? (
         <div className="card alt d2">

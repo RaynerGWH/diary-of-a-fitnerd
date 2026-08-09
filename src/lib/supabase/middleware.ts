@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isAllowed } from "@/lib/auth/allow-list";
 
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/denied"];
+const WELCOME_PATH = "/welcome";
 
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
@@ -53,6 +54,18 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  // First authenticated page view this browser session: show the welcome
+  // screen before anything else, same "next" redirect pattern as /login.
+  // The "welcomed" cookie is a session cookie (no max-age), set client-side
+  // when "Enter" is clicked, so this fires again next time the browser (not
+  // just the tab) is reopened.
+  if (pathname !== WELCOME_PATH && !isPublic && !request.cookies.get("welcomed")) {
+    const url = request.nextUrl.clone();
+    url.pathname = WELCOME_PATH;
+    url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
