@@ -6,8 +6,8 @@
   --paper: #f0ebe0;
   --cream: #faf7ef;
   --ink: #20201e;
-  --accent: #2f4fe0;
-  --accent-soft: #e1e6fd;
+  --accent: #1e4d3b;
+  --accent-soft: #e0ebe4;
   --urgent: #ef5a6b;
   --urgent-soft: #fcdfe2;
   --hi: #ffe066;
@@ -23,7 +23,7 @@
 html, body { margin: 0; padding: 0; }
 
 body {
-  font-family: var(--font-shantell), 'Shantell Sans', system-ui, sans-serif;
+  font-family: var(--font-inter), system-ui, sans-serif;
   color: var(--ink);
   background:
     radial-gradient(circle at 1px 1px, rgba(32,32,30,.10) 1px, transparent 0) 0 0/22px 22px,
@@ -78,8 +78,17 @@ body {
 .card.alt { border-radius: var(--sketch2); }
 @keyframes rise { to { opacity: 1; transform: translateY(0); } }
 
-/* highlighter underline (used on the wordmark) */
-.word { font-weight: 700; font-size: 34px; letter-spacing: 1px; line-height: .9; position: relative; }
+.logo { display: block; }
+
+/* highlighter underline (used on the wordmark, currently unused pending the logo decision) */
+.word {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 500;
+  font-size: 32px;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  position: relative;
+}
 .word u { text-decoration: none; position: relative; }
 .word u::after {
   content: "";
@@ -91,20 +100,37 @@ body {
   border-radius: 40% 60% 50% 50%;
   transform: rotate(-1.2deg);
 }
-.sub { font-family: var(--font-caveat), 'Caveat', cursive; font-size: 20px; color: var(--muted); margin-top: 2px; }
+.sub {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-style: italic;
+  font-size: 14px;
+  color: var(--muted);
+  margin-top: 2px;
+}
 
-/* stats grid */
-.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.stat { text-align: center; padding: 12px 8px; }
-.stat .n { font-weight: 700; font-size: 30px; line-height: 1; }
-.stat .l { font-size: 13px; color: var(--muted); margin-top: 3px; }
-.stat.s2 { transform: rotate(-1.2deg); }
+.home-greeting-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.home-greeting {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-weight: 500;
+  font-style: italic;
+  font-size: 26px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
 
 /* section label */
 .label {
-  font-family: var(--font-caveat), 'Caveat', cursive;
-  font-size: 23px;
-  margin: 2px 2px -4px;
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 2px 2px -2px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -133,11 +159,13 @@ body {
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
 .chip {
+  font-family: inherit;
   font-size: 12.5px;
   border: 2px solid var(--ink);
   border-radius: var(--sketch-chip);
   padding: 2px 9px;
   background: #fff;
+  cursor: pointer;
 }
 .chip.hi { background: var(--hi); font-weight: 700; }
 
@@ -179,6 +207,10 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* the cactus is the app's logo mark, colored to stand apart from the plain
+   black nav icons: green stroke, small yellow flower bloom on top. */
+.cactus-icon { stroke: var(--accent); }
+.cactus-flower { fill: var(--hi); }
 
 /* staggered rise delays */
 .d1 { animation-delay: .05s; }
@@ -221,7 +253,7 @@ body {
   display: block;
 }
 .capture-hero .big { font-weight: 700; font-size: 22px; line-height: 1; }
-.capture-hero .hint { font-family: var(--font-caveat), 'Caveat', cursive; font-size: 17px; opacity: .92; margin-top: 4px; }
+.capture-hero .hint { font-family: var(--font-inter), system-ui, sans-serif; font-style: italic; font-size: 14px; opacity: .92; margin-top: 4px; }
 
 /* form bits */
 .field {
@@ -244,9 +276,28 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  min-height: 240px;
   max-height: 55vh;
   overflow-y: auto;
   padding: 2px 2px 4px;
+}
+.chat-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  padding: 24px 16px;
+}
+.chat-empty-text {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22px;
+  line-height: 1.3;
+  color: var(--muted);
 }
 .bubble {
   max-width: 84%;
@@ -266,3 +317,70 @@ textarea.field { resize: vertical; min-height: 70px; font-family: inherit; }
 .chat-input-row .field { flex: 1; }
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
+
+/* pending chat-capture label: blinks continuously so the "still working"
+   state is visible even between the every-3s word swaps. */
+.pending-word {
+  display: inline-block;
+  animation: pending-blink 1.1s ease-in-out infinite;
+}
+@keyframes pending-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+/* welcome screen (/welcome, a real route, not an overlay): the same
+   PhoneFrame shape/size as every other screen, via the .phone-welcome
+   modifier for its own paper/ink/pine palette. Body's own flex centering +
+   safe-area padding position it, same as any other page. Newsreader/Inter
+   (the fonts) are shared app-wide; the color palette revamp hasn't happened
+   yet. */
+.phone-welcome { background: #faf9f6; }
+.phone-welcome .stack {
+  align-items: center;
+  text-align: center;
+  gap: 28px;
+  margin-top: 0;
+  padding: 24px 4px;
+}
+
+.ws-greeting {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: clamp(26px, 7vw, 38px);
+  font-weight: 500;
+  color: #1b2130;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  text-align: center;
+  max-width: 90vw;
+}
+.ws-char { display: inline-block; opacity: 0; }
+.ws-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 3px;
+  background: #1e4d3b;
+  vertical-align: -0.12em;
+  animation: ws-blink 1s step-end infinite;
+}
+.ws-greeting.done-typing .ws-cursor { display: none; }
+@keyframes ws-blink { 50% { opacity: 0; } }
+
+.ws-enter {
+  font-family: var(--font-inter), system-ui, sans-serif;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: #faf9f6;
+  background: #1e4d3b;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 34px;
+  cursor: pointer;
+  opacity: 0;
+}
+/* !important: anime.js leaves an inline opacity:1 after the entrance animation,
+   which would otherwise outrank this hover rule. */
+.ws-enter:hover { opacity: 0.9 !important; }
+.ws-enter:active { transform: translateY(1px); }
