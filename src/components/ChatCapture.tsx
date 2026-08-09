@@ -35,6 +35,10 @@ const PLAYFUL_VERBS = [
   "parsing the vibes...",
 ];
 
+// Cap on how tall the composer can grow before it scrolls internally
+// instead of pushing the send button further down.
+const TEXTAREA_MAX_HEIGHT = 120;
+
 function PendingLabel() {
   const wordsRef = useRef(shuffle([...PLAYFUL_VERBS]));
   const [i, setI] = useState(0);
@@ -60,6 +64,7 @@ export function ChatCapture({
   const [input, setInput] = useState("");
   const [pending, startTransition] = useTransition();
   const threadRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Set when "restart chat" is pressed: excludes everything before this
   // moment from the parser's context/correction target, on top of the
   // server's own 15-minute staleness cutoff.
@@ -69,13 +74,22 @@ export function ChatCapture({
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
   }, [bubbles]);
 
+  // Auto-grow the composer as you type instead of scrolling long text
+  // sideways inside a single fixed line, where you can't see the start of
+  // what you typed.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, TEXTAREA_MAX_HEIGHT)}px`;
+  }, [input]);
+
   function handleRestart() {
     restartedAfterRef.current = new Date().toISOString();
     setBubbles([]);
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function sendMessage() {
     const text = input.trim();
     if (!text || pending) return;
     setInput("");
@@ -123,8 +137,20 @@ export function ChatCapture({
     });
   }
 
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    sendMessage();
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
   return (
-    <div className="card d1 flex flex-col gap-3">
+    <div className="card d1 flex flex-1 min-h-0 flex-col gap-3">
       <div className="chat-thread" ref={threadRef}>
         {bubbles.length === 0 && (
           <div className="chat-empty">
@@ -143,11 +169,14 @@ export function ChatCapture({
         ))}
       </div>
       <form onSubmit={handleSubmit} className="chat-input-row">
-        <input
+        <textarea
+          ref={textareaRef}
           className="field"
           placeholder="log a task, note, expense..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={1}
           autoFocus
         />
         <button type="submit" className="sticker-btn primary" disabled={pending || !input.trim()}>
