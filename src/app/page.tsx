@@ -18,7 +18,7 @@ export default async function HomePage() {
   ]);
 
   return (
-    <PhoneFrame>
+    <PhoneFrame nav={<BottomNav active="home" />}>
       <HomeGreeting />
 
       <EntriesLive userId={profile.id} />
@@ -28,8 +28,6 @@ export default async function HomePage() {
       </Link>
 
       <HomeEntries tasks={tasks} logs={logs} />
-
-      <BottomNav active="home" />
     </PhoneFrame>
   );
 }

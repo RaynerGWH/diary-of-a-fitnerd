@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
-import { Header } from "@/components/Header";
 import { BottomNav } from "@/components/BottomNav";
 import { EntryCard } from "@/components/EntryCard";
 import { EntriesFilterBar } from "@/components/EntriesFilterBar";
@@ -23,8 +22,8 @@ export default async function EntriesPage({
   const entries = await getEntries(profile.id, { category, type: validType, search: q, limit: 50 });
 
   return (
-    <PhoneFrame>
-      <Header subtitle="everything you've logged" />
+    <PhoneFrame nav={<BottomNav active="entries" />}>
+      <div className="sub">everything you&apos;ve logged</div>
 
       <EntriesFilterBar />
 
@@ -42,8 +41,6 @@ export default async function EntriesPage({
           />
         ))
       )}
-
-      <BottomNav active="entries" />
     </PhoneFrame>
   );
 }
