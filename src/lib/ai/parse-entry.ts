@@ -42,14 +42,14 @@ If intent is "new", respond with exactly:
 Split into multiple entries only when the message clearly describes multiple separate things (e.g. "pay rent and call mom tomorrow" -> two entries). One thing described one way is one entry, not several.
 
 Each entry object:
-- type: one of "task" | "log" | "event". "log" is the catch-all: thoughts, notes, records of what happened, expenses — anything that isn't a task or a scheduled event.
+- type: one of "task" | "log" | "event". "log" is the catch-all: thoughts, notes, records of what happened, expenses, anything that isn't a task or a scheduled event.
 - category: one of ${CATEGORIES.join(", ")} if it clearly fits, else a short freeform lowercase word.
 - title: short (a few words), in the user's own words, not a restatement.
 - body: optional extra detail, or null.
 - dueAt: ISO 8601 datetime, only for tasks with a due date, else null.
 - occurredAt: ISO 8601 datetime this happened/happens, else null to default to now.
 - amount: number, only if this is an expenditure with a clear amount, else null.
-- currency: 3-letter currency code if amount is set, else null. Default to SGD when the message doesn't name a specific currency (e.g. a bare "$" amount) — don't assume USD.
+- currency: 3-letter currency code if amount is set, else null. Default to SGD when the message doesn't name a specific currency (e.g. a bare "$" amount), don't assume USD.
 - uncertainFields: array of the field names above you're genuinely unsure about (e.g. ambiguous category, no clear date despite a due-date-sounding message). Empty array if confident.
 - reason: one short sentence explaining the uncertainty, or null if uncertainFields is empty.
 
@@ -215,13 +215,13 @@ ${list}
 
 Current date/time: ${now.toISOString()}. Resolve relative dates against this.
 
-Decide which entry (if any) the user's message refers to, and what should change. If your best guess is the most recent of several similar candidates, still pick it (it's the best default), but set "uncertain": true whenever the message doesn't clearly distinguish which candidate it means — don't guess silently just because one candidate happens to be more recent. Respond with exactly:
+Decide which entry (if any) the user's message refers to, and what should change. If your best guess is the most recent of several similar candidates, still pick it (it's the best default), but set "uncertain": true whenever the message doesn't clearly distinguish which candidate it means, and don't guess silently just because one candidate happens to be more recent. Respond with exactly:
 {
   "matchedId": "the id of the matching entry, or null if none of these are a good match",
   "updates": {
     // only include keys that should change: type, category, title, body, dueAt (ISO or null), amount, currency, occurredAt (ISO), status ("open" or "done", tasks only)
   },
-  "reply": "short (under 12 words), casual first-person question PROPOSING the change, not confirming it (e.g. 'change rent to $500?' not 'updated rent to $500'), no emoji — the user still has to confirm before anything is saved",
+  "reply": "short (under 12 words), casual first-person question PROPOSING the change, not confirming it (e.g. 'change rent to $500?' not 'updated rent to $500'), no emoji. The user still has to confirm before anything is saved",
   "uncertain": true if you're not confident this is the right entry or the right change, else false
 }
 

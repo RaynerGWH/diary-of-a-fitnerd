@@ -13,7 +13,7 @@ function endOfToday(): Date {
   return d;
 }
 
-// Every open task, regardless of due date — genuinely "outstanding", not
+// Every open task, regardless of due date: genuinely "outstanding", not
 // just "due today or overdue or undated" (that narrower set used to be what
 // this returned, which silently hid anything due in the future from the
 // "outstanding tasks" section on home). Soonest-due first, undated tasks
@@ -41,18 +41,6 @@ export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
     .gte("occurred_at", startOfToday().toISOString())
     .lte("occurred_at", endOfToday().toISOString())
     .order("occurred_at", { ascending: false });
-  if (error) throw error;
-  return (data as Entry[]) ?? [];
-}
-
-export async function getRecentEntries(userId: UUID, limit = 20): Promise<Entry[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("entries")
-    .select("*")
-    .eq("user_id", userId)
-    .order("occurred_at", { ascending: false })
-    .limit(limit);
   if (error) throw error;
   return (data as Entry[]) ?? [];
 }
@@ -102,7 +90,7 @@ export async function searchEntriesForEdit(userId: UUID, query: string, limit = 
 
 // The single definition of "still the same conversation": shared between
 // what /capture shows on load (below) and what counts as fresh-enough
-// context for the parser (chat-actions.ts). Kept short on purpose — coming
+// context for the parser (chat-actions.ts). Kept short on purpose: coming
 // back after a gap to log something new shouldn't dump you back into a
 // stale old thread, and 15 minutes is already the parser's own cutoff for
 // treating a message as a continuation rather than something unrelated.
