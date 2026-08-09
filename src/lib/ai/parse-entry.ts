@@ -1,13 +1,12 @@
 import { CATEGORIES, type EntryType } from "@/lib/db/types";
 import { callOpenRouter } from "./openrouter";
 
-const ENTRY_TYPES: EntryType[] = ["task", "note", "log", "event"];
+const ENTRY_TYPES: EntryType[] = ["task", "log", "event"];
 const KNOWN_FIELDS = ["type", "category", "title", "body", "dueAt", "occurredAt", "amount", "currency"];
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
 
-export type ParsedEntry = {
-  isCorrection: boolean;
+export type NewEntryDraft = {
   type: EntryType;
   category: string;
   title: string;
@@ -18,31 +17,49 @@ export type ParsedEntry = {
   currency: string | null;
   uncertainFields: string[];
   reason: string | null;
-  reply: string;
 };
+
+export type ParseResult =
+  | { intent: "new"; entries: NewEntryDraft[]; reply: string }
+  | { intent: "edit"; editQuery: string };
 
 function buildSystemPrompt(now: Date): string {
   const weekday = now.toLocaleDateString("en-US", { weekday: "long" });
   return `You are the parser behind a personal daily-ops journal's chat capture box.
-Turn the user's message into exactly one journal entry as JSON.
 
 Current date/time: ${now.toISOString()} (${weekday}). Resolve relative dates ("tomorrow", "friday") against this.
 
-Fields to return, all required:
-- isCorrection (boolean): true only if this message is clearly correcting/adjusting the entry you just logged in the previous turn (e.g. "actually make it due tomorrow", "no, category should be work"), not a new independent thing.
-- type: one of "task" | "note" | "log" | "event".
+First decide the user's intent:
+- "new": logging one or more new things (the common case).
+- "edit": changing/updating/completing something already logged before (e.g. "actually make the rent one $500", "mark the dentist task done", "the gym log should say 45 mins not 30"). This is about an OLD entry, not a new one.
+
+If intent is "new", respond with exactly:
+{
+  "intent": "new",
+  "entries": [ {...one object per distinct thing being logged...} ],
+  "reply": "short (under 12 words), casual first-person confirmation of what you logged, no emoji. If multiple entries, briefly summarize all of them."
+}
+Split into multiple entries only when the message clearly describes multiple separate things (e.g. "pay rent and call mom tomorrow" -> two entries). One thing described one way is one entry, not several.
+
+Each entry object:
+- type: one of "task" | "log" | "event". "log" is the catch-all: thoughts, notes, records of what happened, expenses — anything that isn't a task or a scheduled event.
 - category: one of ${CATEGORIES.join(", ")} if it clearly fits, else a short freeform lowercase word.
 - title: short (a few words), in the user's own words, not a restatement.
 - body: optional extra detail, or null.
 - dueAt: ISO 8601 datetime, only for tasks with a due date, else null.
 - occurredAt: ISO 8601 datetime this happened/happens, else null to default to now.
 - amount: number, only if this is an expenditure with a clear amount, else null.
-- currency: 3-letter currency code if amount is set, else null.
+- currency: 3-letter currency code if amount is set, else null. Default to SGD when the message doesn't name a specific currency (e.g. a bare "$" amount) — don't assume USD.
 - uncertainFields: array of the field names above you're genuinely unsure about (e.g. ambiguous category, no clear date despite a due-date-sounding message). Empty array if confident.
 - reason: one short sentence explaining the uncertainty, or null if uncertainFields is empty.
-- reply: a short (under 12 words), casual first-person confirmation of what you logged, no emoji.
 
-Respond with ONLY a JSON object with exactly these fields.`;
+If intent is "edit", respond with exactly:
+{
+  "intent": "edit",
+  "editQuery": "a few keywords describing the OLD entry being referenced (not the new value), to search for it by, e.g. for 'make the rent one $500' use 'rent'"
+}
+
+Respond with ONLY a JSON object, no other text.`;
 }
 
 function isValidIsoDate(v: unknown): v is string {
@@ -52,7 +69,7 @@ function isValidIsoDate(v: unknown): v is string {
 // Defensive against whatever the model actually returns: unknown/missing
 // fields fall back to safe defaults and get added to uncertainFields, so a
 // malformed parse is flagged for review instead of silently saved wrong.
-export function validateParsed(raw: unknown, fallbackTitle: string): ParsedEntry {
+function validateEntryDraft(raw: unknown, fallbackTitle: string): NewEntryDraft {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   const uncertain = new Set(
     Array.isArray(r.uncertainFields)
@@ -66,7 +83,7 @@ export function validateParsed(raw: unknown, fallbackTitle: string): ParsedEntry
   if (typeof r.type === "string" && ENTRY_TYPES.includes(r.type as EntryType)) {
     type = r.type as EntryType;
   } else {
-    type = "note";
+    type = "log";
     uncertain.add("type");
   }
 
@@ -90,11 +107,9 @@ export function validateParsed(raw: unknown, fallbackTitle: string): ParsedEntry
         : "SGD"
       : null;
 
-  const reply = typeof r.reply === "string" && r.reply.trim() ? r.reply.trim() : "logged that";
   const reason = typeof r.reason === "string" && r.reason.trim() ? r.reason.trim() : null;
 
   return {
-    isCorrection: r.isCorrection === true,
     type,
     category,
     title,
@@ -105,11 +120,31 @@ export function validateParsed(raw: unknown, fallbackTitle: string): ParsedEntry
     currency,
     uncertainFields: Array.from(uncertain),
     reason,
-    reply,
   };
 }
 
-export async function parseMessage(message: string, context: ChatTurn[]): Promise<ParsedEntry> {
+export function validateParseResult(raw: unknown, fallbackTitle: string): ParseResult {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+
+  if (r.intent === "edit") {
+    const editQuery =
+      typeof r.editQuery === "string" && r.editQuery.trim()
+        ? r.editQuery.trim()
+        : fallbackTitle.slice(0, 60);
+    return { intent: "edit", editQuery };
+  }
+
+  // Defensive fallback: if the model forgot to wrap in "entries" (or sent an
+  // empty array), treat the whole top-level object as a single entry draft
+  // rather than silently producing nothing.
+  const rawEntries = Array.isArray(r.entries) && r.entries.length > 0 ? r.entries : [r];
+  const entries = rawEntries.map((e) => validateEntryDraft(e, fallbackTitle));
+  const reply = typeof r.reply === "string" && r.reply.trim() ? r.reply.trim() : "logged that";
+
+  return { intent: "new", entries, reply };
+}
+
+export async function parseMessage(message: string, context: ChatTurn[]): Promise<ParseResult> {
   const raw = await callOpenRouter([
     { role: "system", content: buildSystemPrompt(new Date()) },
     ...context,
@@ -122,5 +157,141 @@ export async function parseMessage(message: string, context: ChatTurn[]): Promis
   } catch {
     parsed = {};
   }
-  return validateParsed(parsed, message);
+  return validateParseResult(parsed, message);
+}
+
+// --- edit resolution: given DB-search candidates (deterministic keyword
+// match, not the LLM's own memory), the LLM picks which one the user means
+// and what should change. Kept as a separate call from parseMessage so the
+// common "new entry" path never pays for it. ---
+
+export type EditCandidate = {
+  id: string;
+  type: EntryType;
+  category: string;
+  title: string;
+  body: string | null;
+  dueAt: string | null;
+  amount: number | null;
+  currency: string | null;
+  status: string | null;
+};
+
+export type EditUpdates = {
+  type?: EntryType;
+  category?: string;
+  title?: string;
+  body?: string | null;
+  dueAt?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  occurredAt?: string;
+  status?: "open" | "done";
+};
+
+export type EditResolution = {
+  matchedId: string | null;
+  updates: EditUpdates;
+  reply: string;
+  uncertain: boolean;
+};
+
+function describeCandidate(c: EditCandidate): string {
+  const bits = [c.type, c.category, `"${c.title}"`];
+  if (c.body) bits.push(c.body);
+  if (c.dueAt) bits.push(`due ${c.dueAt}`);
+  if (c.amount !== null) bits.push(`${c.currency ?? ""} ${c.amount}`.trim());
+  if (c.status) bits.push(c.status);
+  return `${bits.join(" · ")} [id=${c.id}]`;
+}
+
+function buildResolveEditPrompt(now: Date, candidates: EditCandidate[]): string {
+  const list = candidates.map((c, i) => `${i + 1}. ${describeCandidate(c)}`).join("\n");
+
+  return `You are the editor behind a personal daily-ops journal's chat capture box.
+The user wants to update an existing entry. Here are candidate entries found by keyword search, most recent first:
+
+${list}
+
+Current date/time: ${now.toISOString()}. Resolve relative dates against this.
+
+Decide which entry (if any) the user's message refers to, and what should change. If your best guess is the most recent of several similar candidates, still pick it (it's the best default), but set "uncertain": true whenever the message doesn't clearly distinguish which candidate it means — don't guess silently just because one candidate happens to be more recent. Respond with exactly:
+{
+  "matchedId": "the id of the matching entry, or null if none of these are a good match",
+  "updates": {
+    // only include keys that should change: type, category, title, body, dueAt (ISO or null), amount, currency, occurredAt (ISO), status ("open" or "done", tasks only)
+  },
+  "reply": "short (under 12 words), casual first-person question PROPOSING the change, not confirming it (e.g. 'change rent to $500?' not 'updated rent to $500'), no emoji — the user still has to confirm before anything is saved",
+  "uncertain": true if you're not confident this is the right entry or the right change, else false
+}
+
+Respond with ONLY a JSON object, no other text.`;
+}
+
+function validateEditUpdates(raw: unknown): EditUpdates {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const updates: EditUpdates = {};
+
+  if (typeof r.type === "string" && ENTRY_TYPES.includes(r.type as EntryType)) {
+    updates.type = r.type as EntryType;
+  }
+  if (typeof r.category === "string" && r.category.trim()) {
+    updates.category = r.category.trim().toLowerCase();
+  }
+  if (typeof r.title === "string" && r.title.trim()) {
+    updates.title = r.title.trim();
+  }
+  if (r.body === null) {
+    updates.body = null;
+  } else if (typeof r.body === "string" && r.body.trim()) {
+    updates.body = r.body.trim();
+  }
+  if (r.dueAt === null) {
+    updates.dueAt = null;
+  } else if (isValidIsoDate(r.dueAt)) {
+    updates.dueAt = r.dueAt;
+  }
+  if (typeof r.amount === "number" && Number.isFinite(r.amount)) {
+    updates.amount = r.amount;
+  }
+  if (typeof r.currency === "string" && r.currency.trim()) {
+    updates.currency = r.currency.trim().toUpperCase();
+  }
+  if (isValidIsoDate(r.occurredAt)) {
+    updates.occurredAt = r.occurredAt;
+  }
+  if (r.status === "open" || r.status === "done") {
+    updates.status = r.status;
+  }
+
+  return updates;
+}
+
+export function validateEditResolution(raw: unknown, candidateIds: Set<string>): EditResolution {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const matchedId =
+    typeof r.matchedId === "string" && candidateIds.has(r.matchedId) ? r.matchedId : null;
+  const updates = validateEditUpdates(r.updates);
+  const reply = typeof r.reply === "string" && r.reply.trim() ? r.reply.trim() : "make this change?";
+  const uncertain = r.uncertain === true || matchedId === null;
+
+  return { matchedId, updates, reply, uncertain };
+}
+
+export async function resolveEdit(
+  message: string,
+  candidates: EditCandidate[],
+): Promise<EditResolution> {
+  const raw = await callOpenRouter([
+    { role: "system", content: buildResolveEditPrompt(new Date(), candidates) },
+    { role: "user", content: message },
+  ]);
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = {};
+  }
+  return validateEditResolution(parsed, new Set(candidates.map((c) => c.id)));
 }
