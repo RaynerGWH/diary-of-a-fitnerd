@@ -1,17 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { sgtDayBounds } from "@/lib/time";
 import type { ChatMessage, Entry, EntryType, UUID } from "./types";
-
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfToday(): Date {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
 
 // Every open task, regardless of due date: genuinely "outstanding", not
 // just "due today or overdue or undated" (that narrower set used to be what
@@ -32,14 +21,17 @@ export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
 }
 
 export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
+  // "Today" is the Singapore day, not the server's. This runs on Vercel in
+  // UTC, so before 8am SGT the old local-clock version was still on yesterday.
+  const { start, end } = sgtDayBounds();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("entries")
     .select("*")
     .eq("user_id", userId)
     .in("type", ["log", "event"])
-    .gte("occurred_at", startOfToday().toISOString())
-    .lte("occurred_at", endOfToday().toISOString())
+    .gte("occurred_at", start)
+    .lte("occurred_at", end)
     .order("occurred_at", { ascending: false });
   if (error) throw error;
   return (data as Entry[]) ?? [];

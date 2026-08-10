@@ -1,4 +1,5 @@
 import { CATEGORIES, type EntryType } from "@/lib/db/types";
+import { SGT_OFFSET, sgtDateTimeLabel, sgtWeekday } from "@/lib/time";
 import { callOpenRouter } from "./openrouter";
 
 const ENTRY_TYPES: EntryType[] = ["task", "log", "event"];
@@ -24,10 +25,12 @@ export type ParseResult =
   | { intent: "edit"; editQuery: string };
 
 function buildSystemPrompt(now: Date): string {
-  const weekday = now.toLocaleDateString("en-US", { weekday: "long" });
+  // The user's wall clock, not the server's. This runs on Vercel in UTC, so
+  // deriving the weekday from the raw instant named the wrong day for the
+  // eight hours after SGT midnight, and "friday" resolved a day early.
   return `You are the parser behind a personal daily-ops journal's chat capture box.
 
-Current date/time: ${now.toISOString()} (${weekday}). Resolve relative dates ("tomorrow", "friday") against this.
+Current date/time: ${sgtDateTimeLabel(now)} Singapore time (${sgtWeekday(now)}). Resolve relative dates ("tomorrow", "friday") against this. Every date you return must be ISO 8601 carrying the ${SGT_OFFSET} offset.
 
 First decide the user's intent:
 - "new": logging one or more new things (the common case).
@@ -213,7 +216,7 @@ The user wants to update an existing entry. Here are candidate entries found by 
 
 ${list}
 
-Current date/time: ${now.toISOString()}. Resolve relative dates against this.
+Current date/time: ${sgtDateTimeLabel(now)} Singapore time (${sgtWeekday(now)}). Resolve relative dates against this, and return dates as ISO 8601 carrying the ${SGT_OFFSET} offset.
 
 Decide which entry (if any) the user's message refers to, and what should change. If your best guess is the most recent of several similar candidates, still pick it (it's the best default), but set "uncertain": true whenever the message doesn't clearly distinguish which candidate it means, and don't guess silently just because one candidate happens to be more recent. Respond with exactly:
 {
