@@ -108,7 +108,12 @@ export async function getRecentChatMessages(
     .select("*")
     .eq("user_id", userId)
     .gte("created_at", since.toISOString())
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    // Tiebreaker for rows written before the timestamps were stamped
+    // explicitly (see chatTimestamps in capture/chat-actions.ts): they share a
+    // created_at, and "user" sorts after "assistant", so descending puts each
+    // message back above the reply it produced.
+    .order("role", { ascending: false });
   if (error) throw error;
   return (data as ChatMessage[]) ?? [];
 }
