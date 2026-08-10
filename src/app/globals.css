@@ -497,13 +497,31 @@ textarea.field::-webkit-scrollbar { display: none; }
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
 
-/* Re-creates .stack's column gap: this wrapper is a single flex child of
-   .stack, so the cards inside it would otherwise lose their spacing. */
-.results {
+/* /entries owns its own scrolling: the pane fills .stack exactly, so the stack
+   never scrolls, the controls stay pinned, and .results is the only thing that
+   moves. Scrolling the list away from the filter you are using was the problem.
+   The x axis and touch-action are pinned for the same reason as .stack: setting
+   only overflow-y computes the other axis to auto and makes this pan sideways. */
+.entries-pane {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.results::-webkit-scrollbar { display: none; }
 /* Inert, not just dim: these results answer the previous query. */
 .results-stale {
   opacity: 0.45;
@@ -547,7 +565,24 @@ textarea.field::-webkit-scrollbar { display: none; }
 .schedule-title.done { text-decoration: line-through; color: var(--muted); }
 
 /* calendar */
-.cal { display: flex; flex-direction: column; gap: 16px; }
+/* Fills .results rather than scrolling inside it, so the month grid stays put
+   and .cal-agenda below is what scrolls. */
+.cal { display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
+.cal-head,
+.cal-grid { flex-shrink: 0; }
+.cal-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cal-agenda::-webkit-scrollbar { display: none; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cal-title {
   font-family: var(--font-newsreader), Georgia, serif;

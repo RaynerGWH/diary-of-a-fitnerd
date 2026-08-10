@@ -77,7 +77,10 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
   }
 
   return (
-    <>
+    // Fills the stack and scrolls internally, so the controls below stay put
+    // and only the results move. Filtering something you have to scroll back
+    // up to reach is the thing this prevents.
+    <div className="entries-pane">
       <div className="flex flex-col gap-2">
         <div className="view-toggle">
           {(["list", "calendar"] as const).map((v) => (
@@ -143,6 +146,6 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
       </div>
 
       <div className={`results ${loading ? "results-stale" : ""}`.trim()}>{children}</div>
-    </>
+    </div>
   );
 }

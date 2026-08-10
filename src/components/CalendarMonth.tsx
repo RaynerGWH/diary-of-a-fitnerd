@@ -110,21 +110,26 @@ export function CalendarMonth({
       </div>
 
       <div className="label cal-agenda-label">{formatDayHeading(selected)}</div>
-      {dayEntries.length === 0 ? (
-        <div className="card alt d2">
-          <div className="text-[14px] text-[color:var(--muted)]">nothing on this day.</div>
-        </div>
-      ) : (
-        dayEntries.map((e, i) => (
-          <EntryCard
-            key={e.id}
-            entry={e}
-            showTime
-            variant={i % 2 === 0 ? undefined : "alt"}
-            delayClass={`d${Math.min(6, 2 + (i % 4))}`}
-          />
-        ))
-      )}
+
+      {/* The grid above is fixed; only this list scrolls, so picking a day
+          never scrolls the month you picked it from out of view. */}
+      <div className="cal-agenda">
+        {dayEntries.length === 0 ? (
+          <div className="card alt d2">
+            <div className="text-[14px] text-[color:var(--muted)]">nothing on this day.</div>
+          </div>
+        ) : (
+          dayEntries.map((e, i) => (
+            <EntryCard
+              key={e.id}
+              entry={e}
+              showTime
+              variant={i % 2 === 0 ? undefined : "alt"}
+              delayClass={`d${Math.min(6, 2 + (i % 4))}`}
+            />
+          ))
+        )}
+      </div>
     </div>
   );
 }
