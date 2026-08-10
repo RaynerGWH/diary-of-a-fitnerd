@@ -35,6 +35,24 @@ export async function deleteEntry(entryId: string) {
   revalidatePath("/entries");
 }
 
+// The chat parser sets needs_review when it wasn't confident about a field,
+// but nothing ever cleared it: the badge was permanent, with no way to say
+// "I looked, it's fine". This is that acknowledgement.
+export async function clearNeedsReview(entryId: string) {
+  const user = await requireAllowedUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("entries")
+    .update({ needs_review: false, updated_at: new Date().toISOString() })
+    .eq("id", entryId)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath("/entries");
+}
+
 export type EntryEditFields = {
   type: EntryType;
   category: string;
@@ -61,6 +79,10 @@ export async function updateEntry(entryId: string, fields: EntryEditFields): Pro
     due_at: fields.type === "task" ? fields.dueAt : null,
     amount: fields.amount,
     currency: fields.currency,
+    // Saving the edit form IS the review: the user just read every field and
+    // committed to them, so leaving the badge on would be nagging about
+    // something already resolved.
+    needs_review: false,
     updated_at: new Date().toISOString(),
   };
   if (fields.status !== undefined) update.status = fields.status;

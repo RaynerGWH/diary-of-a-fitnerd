@@ -20,6 +20,15 @@ const EDIT_CANDIDATE_LIMIT = 5;
 // call, so an unbounded string is an unbounded bill.
 const MAX_MESSAGE_LENGTH = 2000;
 
+// created_at defaults to now(), which is the TRANSACTION timestamp: both rows
+// of a single insert get an identical value, leaving their relative order
+// undefined once the thread is reloaded from the DB. Stamping them a
+// millisecond apart is what keeps a reply below the message it answers.
+function chatTimestamps(): { userAt: string; assistantAt: string } {
+  const t = Date.now();
+  return { userAt: new Date(t).toISOString(), assistantAt: new Date(t + 1).toISOString() };
+}
+
 // Edits never auto-apply: the model proposes, the user confirms (and can
 // tweak the fields first) via PendingEditCard in ChatCapture. "new-fallback"
 // covers both "couldn't find a match" and "found candidates but wasn't
@@ -64,6 +73,9 @@ export async function sendCaptureMessage(
     .select("*")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false })
+    // Same tiebreaker as getRecentChatMessages, mirrored: newest first here,
+    // so within a shared timestamp the reply is the newer of the pair.
+    .order("role", { ascending: true })
     .limit(CONTEXT_ROWS);
   if (opts.after) recentQuery = recentQuery.gt("created_at", opts.after);
   const { data: recentRows, error: recentError } = await recentQuery;
@@ -130,11 +142,12 @@ export async function sendCaptureMessage(
       }
     }
 
+    const { userAt, assistantAt } = chatTimestamps();
     const { data: insertedRows, error: chatError } = await supabase
       .from("capture_chat")
       .insert([
-        { user_id: user.id, role: "user", content: text, entry_id: null },
-        { user_id: user.id, role: "assistant", content: reply, entry_id: null },
+        { user_id: user.id, role: "user", content: text, entry_id: null, created_at: userAt },
+        { user_id: user.id, role: "assistant", content: reply, entry_id: null, created_at: assistantAt },
       ])
       .select();
     if (chatError) throw new Error(chatError.message);
@@ -161,11 +174,18 @@ export async function sendCaptureMessage(
   const entries = data as Entry[];
   const flagged = entries.some((e) => e.needs_review);
 
+  const { userAt, assistantAt } = chatTimestamps();
   const { data: insertedRows, error: chatError } = await supabase
     .from("capture_chat")
     .insert([
-      { user_id: user.id, role: "user", content: text, entry_id: null },
-      { user_id: user.id, role: "assistant", content: parsed.reply, entry_id: entries[0]?.id ?? null },
+      { user_id: user.id, role: "user", content: text, entry_id: null, created_at: userAt },
+      {
+        user_id: user.id,
+        role: "assistant",
+        content: parsed.reply,
+        entry_id: entries[0]?.id ?? null,
+        created_at: assistantAt,
+      },
     ])
     .select();
   if (chatError) throw new Error(chatError.message);

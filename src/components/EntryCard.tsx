@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toggleTaskStatus, deleteEntry, updateEntry } from "@/app/entries/actions";
+import { toggleTaskStatus, deleteEntry, updateEntry, clearNeedsReview } from "@/app/entries/actions";
 import { formatRelative, formatDueDate } from "@/lib/format";
 import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { Entry, EntryStatus } from "@/lib/db/types";
@@ -25,6 +25,7 @@ export function EntryCard({
   const router = useRouter();
   const [localEntry, setLocalEntry] = useState(entry);
   const [status, setStatus] = useState<EntryStatus | null>(entry.status);
+  const [needsReview, setNeedsReview] = useState(entry.needs_review);
   const [removed, setRemoved] = useState(false);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<EditForm>(() => formFromEntryLike(entry));
@@ -34,6 +35,7 @@ export function EntryCard({
   useEffect(() => {
     setLocalEntry(entry);
     setStatus(entry.status);
+    setNeedsReview(entry.needs_review);
   }, [entry]);
 
   const isTask = localEntry.type === "task";
@@ -62,6 +64,16 @@ export function EntryCard({
     }
   }
 
+  async function onClearReview() {
+    setNeedsReview(false);
+    try {
+      await clearNeedsReview(localEntry.id);
+      router.refresh();
+    } catch {
+      setNeedsReview(true);
+    }
+  }
+
   function startEdit() {
     setForm(formFromEntryLike(localEntry));
     setSaveError(null);
@@ -79,6 +91,7 @@ export function EntryCard({
       });
       setLocalEntry(updated);
       setStatus(updated.status);
+      setNeedsReview(updated.needs_review);
       setEditing(false);
       router.refresh();
     } catch (err) {
@@ -144,9 +157,23 @@ export function EntryCard({
           >
             <div className={`t ${isDone ? "done" : ""}`}>{localEntry.title}</div>
             {localEntry.body && <div className="b">{localEntry.body}</div>}
-            {localEntry.needs_review && (
+            {needsReview && (
               <div className="chips">
-                <span className="chip warn">needs review</span>
+                {/* Propagation stops here so confirming doesn't also trip the
+                    card's own open-to-edit handlers. */}
+                <button
+                  type="button"
+                  className="chip warn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onClearReview();
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  aria-label={`mark "${localEntry.title}" as reviewed`}
+                  title="tap to confirm this looks right"
+                >
+                  needs review · tap to clear
+                </button>
               </div>
             )}
             <div className={`meta ${overdue ? "overdue" : ""}`}>
