@@ -37,7 +37,7 @@ export function formatDueDate(iso: string): string {
 // All-day entries carry no meaningful time, so they must never be put through
 // a clock formatter: rendering SGT midnight anywhere east or west of +08:00
 // shifts them onto the neighbouring day.
-export function formatEntryTime(iso: string, allDay: boolean): string {
+function formatEntryTime(iso: string, allDay: boolean): string {
   if (allDay) return "all day";
   // hour12 stated outright rather than inherited from the locale: the frame is
   // too narrow to fit an am/pm suffix, so the clock is 24-hour everywhere.
@@ -49,7 +49,7 @@ export function formatEntryTime(iso: string, allDay: boolean): string {
   });
 }
 
-export function formatTimeRange(startIso: string, endIso: string | null, allDay: boolean): string {
+function formatTimeRange(startIso: string, endIso: string | null, allDay: boolean): string {
   const start = formatEntryTime(startIso, allDay);
   if (allDay || !endIso) return start;
   return `${start} to ${formatEntryTime(endIso, false)}`;

@@ -2,10 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { sgtDayBounds, sgtMonthBounds } from "@/lib/time";
 import type { ChatMessage, Entry, EntryType, UUID } from "./types";
 
-// Every open task, regardless of due date: genuinely "outstanding", not
-// just "due today or overdue or undated" (that narrower set used to be what
-// this returned, which silently hid anything due in the future from the
-// "outstanding tasks" section on home). Soonest-due first, undated tasks
+// Every open task, regardless of due date: genuinely "outstanding", so
+// nothing due later is hidden from home. Soonest-due first, undated tasks
 // last since they carry no urgency signal.
 export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();

@@ -24,7 +24,7 @@ export function sgtDateKey(input: Date | string = new Date()): string {
 
 // The absolute instant SGT midnight begins on a given day key. Postgres reads
 // the offset, so these are safe to hand straight to a timestamptz filter.
-export function sgtDayStart(dateKey: string): string {
+function sgtDayStart(dateKey: string): string {
   return `${dateKey}T00:00:00.000${SGT_OFFSET}`;
 }
 
@@ -66,8 +66,6 @@ export function sgtDaysBetween(from: Date | string, to: Date | string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
-// Human-readable SGT stamp for the capture parser's prompt, which needs the
-// user's wall clock rather than an instant to resolve "tomorrow" against.
 // Composes a "YYYY-MM-DD" and an "HH:MM" back into an absolute instant. The
 // explicit offset is what stops a bare date parsing as UTC midnight, which is
 // 8am here and lands the value eight hours off the date that was picked.
@@ -88,6 +86,8 @@ export function taskDueHasTime(dueAt: string): boolean {
   return sgtTimeOfDay(dueAt) !== "00:00";
 }
 
+// Human-readable SGT stamp for the capture parser's prompt, which needs the
+// user's wall clock rather than an instant to resolve "tomorrow" against.
 export function sgtDateTimeLabel(input: Date | string = new Date()): string {
   const d = shifted(input);
   const hh = String(d.getUTCHours()).padStart(2, "0");
