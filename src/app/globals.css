@@ -240,6 +240,9 @@ body {
   cursor: pointer;
 }
 .chip.hi { background: var(--hi); font-weight: 700; }
+/* An empty category filters to nothing. Faded and inert rather than just
+   faded, so it reads as unavailable instead of merely quiet. */
+.chip:disabled { opacity: .45; cursor: not-allowed; }
 
 /* chip-select: tap-to-choose group used by the capture form */
 .chip-select { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -268,8 +271,14 @@ body {
   display: flex; flex-direction: column; align-items: center;
   gap: 2px; font-size: 11.5px; color: var(--muted);
   text-decoration: none;
+  padding: 5px 14px;
+  border-radius: var(--sketch-pill);
 }
-.nav a.on { color: var(--ink); font-weight: 700; }
+/* Where you are, in the app's own green, on a soft pill. Colour alone on the
+   label was easy to miss at this size, and the icon kept its inactive stroke
+   regardless, which made the whole thing read as unselected. */
+.nav a.on { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
+.nav a.on .doodle { stroke: var(--accent); }
 .nav svg { width: 24px; height: 24px; }
 
 /* hand-drawn SVG style */

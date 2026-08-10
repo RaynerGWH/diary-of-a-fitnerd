@@ -28,17 +28,24 @@ export function HomeEntries({ tasks, logs }: { tasks: Entry[]; logs: Entry[] }) 
         >
           all &middot; {total}
         </button>
-        {CATEGORIES.map((c) => (
-          <button
-            key={c}
-            type="button"
-            className={`chip ${category === c ? "hi" : ""}`}
-            style={{ opacity: counts.get(c) ? 1 : 0.5 }}
-            onClick={() => setCategory(c)}
-          >
-            {c} &middot; {counts.get(c) ?? 0}
-          </button>
-        ))}
+        {CATEGORIES.map((c) => {
+          const count = counts.get(c) ?? 0;
+          // An empty category filters to nothing, so there is no point being
+          // able to press it. Still pressable while it is the current
+          // selection, so emptying a category cannot strand you on it.
+          const empty = count === 0 && category !== c;
+          return (
+            <button
+              key={c}
+              type="button"
+              className={`chip ${category === c ? "hi" : ""}`}
+              disabled={empty}
+              onClick={() => setCategory(c)}
+            >
+              {c} &middot; {count}
+            </button>
+          );
+        })}
       </div>
 
       <button
