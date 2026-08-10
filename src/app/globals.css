@@ -550,6 +550,24 @@ textarea.field::-webkit-scrollbar { display: none; }
   color: var(--muted);
 }
 
+/* home clock: the top of the page reads like a lock screen, date above a large
+   time. No seconds, same as iOS, which also keeps it to one repaint a minute. */
+.clock { text-align: center; margin-top: 2px; }
+.clock-date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .01em;
+}
+.clock-time {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: clamp(52px, 17vw, 70px);
+  line-height: 1.04;
+  letter-spacing: -.02em;
+  /* Fixed-width digits, so the clock doesn't twitch sideways as they change. */
+  font-variant-numeric: tabular-nums;
+}
+
 /* home "today" strip: one card, one line per thing, times aligned in their
    own column so the day can be scanned down the left edge. */
 .schedule { display: flex; flex-direction: column; gap: 7px; }

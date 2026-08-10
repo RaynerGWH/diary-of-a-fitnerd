@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { HomeEntries } from "@/components/HomeEntries";
 import { EntriesLive } from "@/components/EntriesLive";
 import { getCurrentProfile } from "@/lib/auth/current-user";
+import { HomeClock } from "@/components/HomeClock";
 import { HomeSchedule } from "@/components/HomeSchedule";
 import { getOutstandingTasks, getTodayLogs, getTodaySchedule } from "@/lib/db/queries";
 
@@ -21,6 +22,8 @@ export default async function HomePage() {
 
   return (
     <PhoneFrame nav={<BottomNav active="home" />}>
+      <HomeClock initialIso={new Date().toISOString()} />
+
       <HomeGreeting />
 
       <EntriesLive userId={profile.id} />
