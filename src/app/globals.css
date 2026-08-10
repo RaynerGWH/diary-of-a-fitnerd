@@ -340,6 +340,25 @@ body {
   color: var(--ink);
 }
 .field:focus { outline: none; box-shadow: 3px 3px 0 var(--ink); }
+/* The "due" input. A native date control is sized to its own intrinsic width
+   and ignores the width above, so it pushed the bubble around it past the
+   frame edge, taking the calendar icon off screen. Dropping the native
+   appearance is what makes it obey; line-height holds it to the same height
+   as the fields around it. */
+input[type="date"].field {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+  line-height: 1.35;
+}
+/* appearance: none also strips the picker button on WebKit, so the icon is
+   put back deliberately, sitting inside the field's right edge. */
+input[type="date"].field::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  margin-left: 4px;
+  cursor: pointer;
+}
 textarea.field {
   resize: vertical;
   min-height: 70px;
