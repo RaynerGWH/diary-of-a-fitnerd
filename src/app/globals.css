@@ -572,7 +572,8 @@ textarea.field::-webkit-scrollbar { display: none; }
 /* home clock: the top of the page reads like a lock screen, date above a large
    time. Sized for "00:00:00": eight characters, so it runs smaller than a
    bare hh:mm would to stay inside the frame. */
-.clock { text-align: center; margin-top: 2px; }
+/* Nudged down off the frame's notch pill so it has a little air above it. */
+.clock { text-align: center; margin-top: 14px; }
 .clock-date {
   font-size: 12.5px;
   font-weight: 600;
