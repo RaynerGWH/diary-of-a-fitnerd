@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { PhoneFrame } from "@/components/PhoneFrame";
 import { BottomNav } from "@/components/BottomNav";
 import { EntryCard } from "@/components/EntryCard";
-import { EntriesFilterBar } from "@/components/EntriesFilterBar";
+import { EntriesFilters } from "@/components/EntriesFilters";
 import { getCurrentProfile } from "@/lib/auth/current-user";
 import { getEntries } from "@/lib/db/queries";
 import type { EntryType } from "@/lib/db/types";
@@ -23,22 +23,22 @@ export default async function EntriesPage({
 
   return (
     <PhoneFrame nav={<BottomNav active="entries" />}>
-      <EntriesFilterBar />
-
-      {entries.length === 0 ? (
-        <div className="card alt d2">
-          <div className="text-[14px] text-[color:var(--muted)]">nothing here yet.</div>
-        </div>
-      ) : (
-        entries.map((e, i) => (
-          <EntryCard
-            key={e.id}
-            entry={e}
-            variant={i % 2 === 0 ? undefined : "alt"}
-            delayClass={`d${Math.min(6, 2 + (i % 4))}`}
-          />
-        ))
-      )}
+      <EntriesFilters>
+        {entries.length === 0 ? (
+          <div className="card alt d2">
+            <div className="text-[14px] text-[color:var(--muted)]">nothing here yet.</div>
+          </div>
+        ) : (
+          entries.map((e, i) => (
+            <EntryCard
+              key={e.id}
+              entry={e}
+              variant={i % 2 === 0 ? undefined : "alt"}
+              delayClass={`d${Math.min(6, 2 + (i % 4))}`}
+            />
+          ))
+        )}
+      </EntriesFilters>
     </PhoneFrame>
   );
 }

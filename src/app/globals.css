@@ -457,6 +457,29 @@ textarea.field::-webkit-scrollbar { display: none; }
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
 
+/* Entries filtering. .results re-creates .stack's own column gap because the
+   wrapper is a single flex child of .stack, so the cards inside it would
+   otherwise lose their spacing. While a filter change is in flight the list is
+   dimmed and made inert: it's still showing the previous query's results, and
+   shouldn't look like a current, tappable answer. */
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.results-stale {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 120ms ease-in;
+}
+/* Reserves its line whether or not it's filled, so the label appearing
+   mid-filter doesn't nudge the whole list down. */
+.filter-status {
+  min-height: 16px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
 /* pending chat-capture label: blinks continuously so the "still working"
    state is visible even between the every-3s word swaps. */
 .pending-word {
