@@ -53,6 +53,10 @@ export function fieldsFromForm(form: EditForm) {
     // A bare "YYYY-MM-DD" parses as UTC midnight, which is 8am the same day in
     // Singapore. Anchoring to SGT midnight keeps the date the user picked.
     dueAt: form.dueAt ? sgtDayStart(form.dueAt) : null,
+    // The form offers a date with no time, so a due date set here is by
+    // definition all-day. Left undefined when there is none, so editing an
+    // event does not clobber a time it never showed.
+    allDay: form.dueAt ? true : undefined,
     amount: form.amount.trim() ? Number(form.amount) : null,
     currency: form.amount.trim() ? form.currency.trim().toUpperCase() || "SGD" : null,
   };

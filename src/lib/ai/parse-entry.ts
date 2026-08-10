@@ -3,9 +3,26 @@ import { SGT_OFFSET, sgtDateTimeLabel, sgtWeekday } from "@/lib/time";
 import { callOpenRouter } from "./openrouter";
 
 const ENTRY_TYPES: EntryType[] = ["task", "log", "event"];
-const KNOWN_FIELDS = ["type", "category", "title", "body", "dueAt", "occurredAt", "amount", "currency"];
+const KNOWN_FIELDS = [
+  "type",
+  "category",
+  "title",
+  "body",
+  "dueAt",
+  "occurredAt",
+  "endsAt",
+  "allDay",
+  "repeat",
+  "amount",
+  "currency",
+];
 
 export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+// Weekly only. Anything richer is an RRULE, and an RRULE cannot be
+// materialized into independently editable rows without inventing an
+// exception model, which is the complexity this design exists to avoid.
+export type RepeatRule = { freq: "weekly"; until: string };
 
 export type NewEntryDraft = {
   type: EntryType;
@@ -14,6 +31,9 @@ export type NewEntryDraft = {
   body: string | null;
   dueAt: string | null;
   occurredAt: string | null;
+  endsAt: string | null;
+  allDay: boolean;
+  repeat: RepeatRule | null;
   amount: number | null;
   currency: string | null;
   uncertainFields: string[];
@@ -51,6 +71,9 @@ Each entry object:
 - body: optional extra detail, or null.
 - dueAt: ISO 8601 datetime, only for tasks with a due date, else null.
 - occurredAt: ISO 8601 datetime this happened/happens, else null to default to now.
+- endsAt: ISO 8601 datetime this finishes, only when a duration or end time is given ("tutorial 2 to 4pm"), else null.
+- allDay: true when a date is given with no time at all ("submit by friday", "interview on the 12th"), false when a clock time is given. Never invent midnight to stand in for an unspecified time, set allDay instead.
+- repeat: {"freq":"weekly","until":"YYYY-MM-DD"} when something recurs weekly ("every monday", "tutorials every tuesday till 14 nov"). Only weekly recurrence is supported: if it repeats on any other cadence, set this to null and note it in uncertainFields. If a weekly thing has no stated end, use the last day of the current semester as a sensible bound, roughly 15 weeks out.
 - amount: number, only if this is an expenditure with a clear amount, else null.
 - currency: 3-letter currency code if amount is set, else null. Default to SGD when the message doesn't name a specific currency (e.g. a bare "$" amount), don't assume USD.
 - uncertainFields: array of the field names above you're genuinely unsure about (e.g. ambiguous category, no clear date despite a due-date-sounding message). Empty array if confident.
@@ -102,6 +125,14 @@ function validateEntryDraft(raw: unknown, fallbackTitle: string): NewEntryDraft 
   const body = typeof r.body === "string" && r.body.trim() ? r.body.trim() : null;
   const dueAt = isValidIsoDate(r.dueAt) ? r.dueAt : null;
   const occurredAt = isValidIsoDate(r.occurredAt) ? r.occurredAt : null;
+  // An end before its start is not a duration, so it is dropped rather than
+  // stored as a negative-length event the calendar would have to defend against.
+  const endsAt =
+    isValidIsoDate(r.endsAt) && occurredAt !== null && Date.parse(r.endsAt) > Date.parse(occurredAt)
+      ? r.endsAt
+      : null;
+  const allDay = r.allDay === true;
+  const repeat = validateRepeat(r.repeat);
   const amount = typeof r.amount === "number" && Number.isFinite(r.amount) ? r.amount : null;
   const currency =
     amount !== null
@@ -119,11 +150,22 @@ function validateEntryDraft(raw: unknown, fallbackTitle: string): NewEntryDraft 
     body,
     dueAt,
     occurredAt,
+    endsAt,
+    allDay,
+    repeat,
     amount,
     currency,
     uncertainFields: Array.from(uncertain),
     reason,
   };
+}
+
+function validateRepeat(raw: unknown): RepeatRule | null {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  if (r.freq !== "weekly") return null;
+  if (typeof r.until !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.until)) return null;
+  if (Number.isNaN(Date.parse(r.until))) return null;
+  return { freq: "weekly", until: r.until };
 }
 
 export function validateParseResult(raw: unknown, fallbackTitle: string): ParseResult {

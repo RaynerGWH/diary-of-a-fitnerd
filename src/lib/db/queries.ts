@@ -62,6 +62,25 @@ export async function getEntries(
   return (data as Entry[]) ?? [];
 }
 
+// Today's schedule: things with a clock time, in the order they happen. Logs
+// are excluded here (unlike the calendar grid) because this answers "what is
+// coming up", not "what happened", and home already has a "logged today"
+// section directly underneath.
+export async function getTodaySchedule(userId: UUID): Promise<Entry[]> {
+  const { start, end } = sgtDayBounds();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", userId)
+    .in("type", ["event", "task"])
+    .gte("calendar_at", start)
+    .lte("calendar_at", end)
+    .order("calendar_at", { ascending: true });
+  if (error) throw error;
+  return (data as Entry[]) ?? [];
+}
+
 // One indexed range scan over calendar_at, which Postgres derives as due_at
 // for tasks and occurred_at for everything else. Undated tasks have a null
 // calendar_at and so never come back. Logs are included deliberately: this is

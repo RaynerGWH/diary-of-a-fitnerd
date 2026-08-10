@@ -1,12 +1,14 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAllowedUser } from "@/lib/auth/require-user";
 import { parseMessage, resolveEdit, type ChatTurn, type EditCandidate } from "@/lib/ai/parse-entry";
 import { searchEntriesForEdit, CHAT_SESSION_WINDOW_MS } from "@/lib/db/queries";
+import { expandWeekly } from "@/lib/calendar";
 import type { EntryEditFields } from "@/app/entries/actions";
-import type { ChatMessage, Entry } from "@/lib/db/types";
+import type { ChatMessage, Entry, EntryType } from "@/lib/db/types";
 
 // How many recent chat rows to send to the parser as context. Enough for a
 // couple of exchanges, without dragging the whole visible history into
@@ -37,6 +39,26 @@ function chatTimestamps(): { userAt: string; assistantAt: string } {
 export type PendingEdit =
   | { kind: "edit"; entryId: string; currentTitle: string; fields: EntryEditFields }
   | { kind: "new-fallback"; fields: EntryEditFields };
+
+// Spelled out because one message can produce both a single row and a whole
+// materialized series, and the two branches have to agree on a type rather
+// than have one inferred from whichever came first.
+type EntryInsertRow = {
+  user_id: string;
+  type: EntryType;
+  category: string;
+  title: string;
+  body: string | null;
+  status: string | null;
+  all_day: boolean;
+  amount: number | null;
+  currency: string | null;
+  needs_review: boolean;
+  series_id: string | null;
+  due_at: string | null;
+  occurred_at: string;
+  ends_at: string | null;
+};
 
 export type SendCaptureMessageResult =
   | {
@@ -156,19 +178,46 @@ export async function sendCaptureMessage(
     return { status: "pending", userMessage, assistantMessage, pending };
   }
 
-  const rows = parsed.entries.map((e) => ({
-    user_id: user.id,
-    type: e.type,
-    category: e.category,
-    title: e.title,
-    body: e.body,
-    status: e.type === "task" ? "open" : null,
-    due_at: e.type === "task" ? e.dueAt : null,
-    occurred_at: e.occurredAt ?? new Date().toISOString(),
-    amount: e.amount,
-    currency: e.currency,
-    needs_review: e.uncertainFields.length > 0,
-  }));
+  const rows: EntryInsertRow[] = parsed.entries.flatMap((e): EntryInsertRow[] => {
+    const base = {
+      user_id: user.id,
+      type: e.type,
+      category: e.category,
+      title: e.title,
+      body: e.body,
+      status: e.type === "task" ? "open" : null,
+      all_day: e.allDay,
+      amount: e.amount,
+      currency: e.currency,
+      needs_review: e.uncertainFields.length > 0,
+    };
+    const startsAt = e.occurredAt ?? new Date().toISOString();
+
+    // A weekly rule becomes N ordinary rows sharing a series_id, rather than a
+    // rule the reader has to expand. Each occurrence is then a normal entry.
+    if (e.repeat) {
+      // Annotated because randomUUID's template-literal return type will not
+      // unify with the null in the single-entry branch below.
+      const seriesId: string = randomUUID();
+      return expandWeekly(startsAt, e.endsAt, e.repeat.until).map((occ) => ({
+        ...base,
+        series_id: seriesId,
+        due_at: e.type === "task" ? occ.occurredAt : null,
+        occurred_at: occ.occurredAt,
+        ends_at: occ.endsAt,
+      }));
+    }
+
+    return [
+      {
+        ...base,
+        series_id: null,
+        due_at: e.type === "task" ? e.dueAt : null,
+        occurred_at: startsAt,
+        ends_at: e.endsAt,
+      },
+    ];
+  });
   const { data, error } = await supabase.from("entries").insert(rows).select();
   if (error) throw new Error(error.message);
   const entries = data as Entry[];

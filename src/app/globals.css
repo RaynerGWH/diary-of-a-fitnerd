@@ -521,6 +521,20 @@ textarea.field::-webkit-scrollbar { display: none; }
   color: var(--muted);
 }
 
+/* home "today" strip: one card, one line per thing, times aligned in their
+   own column so the day can be scanned down the left edge. */
+.schedule { display: flex; flex-direction: column; gap: 7px; }
+.schedule-row { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
+.schedule-time {
+  flex: 0 0 auto;
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.schedule-title { overflow-wrap: break-word; min-width: 0; }
+.schedule-title.done { text-decoration: line-through; color: var(--muted); }
+
 /* calendar */
 .cal { display: flex; flex-direction: column; gap: 16px; }
 .cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

@@ -53,6 +53,24 @@ export async function clearNeedsReview(entryId: string) {
   revalidatePath("/entries");
 }
 
+// Recurring events are stored as ordinary rows sharing a series_id, so
+// removing a whole timetable entry is a delete by that id. Deleting a single
+// occurrence is just deleteEntry, unchanged.
+export async function deleteSeries(seriesId: string) {
+  const user = await requireAllowedUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("entries")
+    .delete()
+    .eq("series_id", seriesId)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath("/entries");
+}
+
 export type EntryEditFields = {
   type: EntryType;
   category: string;
@@ -65,6 +83,10 @@ export type EntryEditFields = {
   // edit that says "mark as done"). Omitted by EntryCard's inline edit,
   // which leaves status alone and lets the dedicated toggle handle it.
   status?: EntryStatus | null;
+  // Optional for the same reason: the edit form only offers a due *date*, so
+  // it can say "this is all-day" but has nothing to say about an event whose
+  // time it never showed.
+  allDay?: boolean;
 };
 
 export async function updateEntry(entryId: string, fields: EntryEditFields): Promise<Entry> {
@@ -86,6 +108,7 @@ export async function updateEntry(entryId: string, fields: EntryEditFields): Pro
     updated_at: new Date().toISOString(),
   };
   if (fields.status !== undefined) update.status = fields.status;
+  if (fields.allDay !== undefined) update.all_day = fields.allDay;
 
   const { data, error } = await supabase
     .from("entries")
@@ -119,6 +142,7 @@ export async function createEntryFromFields(fields: EntryEditFields): Promise<En
       status: fields.type === "task" ? "open" : null,
       due_at: fields.type === "task" ? fields.dueAt : null,
       occurred_at: new Date().toISOString(),
+      all_day: fields.allDay ?? false,
       amount: fields.amount,
       currency: fields.currency,
     })

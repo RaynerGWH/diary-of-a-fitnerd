@@ -1,5 +1,40 @@
-import { sgtDateKey } from "./time";
+import { sgtDateKey, sgtDayEnd } from "./time";
 import type { Entry } from "./db/types";
+
+// Bounds what one message can insert. "Every monday" with a far-off end date
+// is a plausible thing to type, and each occurrence is a real row.
+export const MAX_SERIES_OCCURRENCES = 60;
+
+// Recurring events are materialized rather than computed from a rule, so each
+// occurrence is an ordinary row: independently editable, tickable, deletable,
+// and searchable. Storage is free at this scale and every hard recurrence
+// problem (edit this one or all, exceptions, per-instance state) disappears.
+export function expandWeekly(
+  startIso: string,
+  endsAtIso: string | null,
+  untilKey: string,
+): { occurredAt: string; endsAt: string | null }[] {
+  // A fixed week in milliseconds is exact here because Singapore has no DST,
+  // so the wall-clock time never drifts across occurrences.
+  const WEEK_MS = 7 * 86_400_000;
+  const start = Date.parse(startIso);
+  const duration = endsAtIso ? Date.parse(endsAtIso) - start : null;
+  const limit = Date.parse(sgtDayEnd(untilKey));
+
+  const out: { occurredAt: string; endsAt: string | null }[] = [];
+  for (let i = 0; i < MAX_SERIES_OCCURRENCES; i++) {
+    const at = start + i * WEEK_MS;
+    // The first occurrence always lands, even if the end date parses to
+    // something before it, so a bad rule degrades to one entry instead of
+    // silently dropping what the user just said.
+    if (i > 0 && at > limit) break;
+    out.push({
+      occurredAt: new Date(at).toISOString(),
+      endsAt: duration !== null ? new Date(at + duration).toISOString() : null,
+    });
+  }
+  return out;
+}
 
 export type MonthCell = { key: string; inMonth: boolean };
 
