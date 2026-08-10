@@ -24,6 +24,49 @@ export type EditForm = {
   currency: string;
 };
 
+// A native <input type="time"> renders 12- or 24-hour by browser locale, with
+// no way to force it, and the am/pm suffix gets clipped inside the phone
+// frame. A select owns its own labels, so the clock is 24-hour everywhere.
+const TIME_STEP_MINUTES = 15;
+const TIME_OPTIONS: string[] = [];
+for (let m = 0; m < 24 * 60; m += TIME_STEP_MINUTES) {
+  TIME_OPTIONS.push(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+}
+
+function TimeSelect({
+  value,
+  onChange,
+  disabled,
+  emptyLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  emptyLabel: string;
+}) {
+  // The chat parser can produce a time off the 15-minute grid ("14:05"). It is
+  // added as its own option rather than dropped, so opening the form never
+  // silently rounds or clears a time the user did not touch.
+  const options =
+    value && !TIME_OPTIONS.includes(value) ? [...TIME_OPTIONS, value].sort() : TIME_OPTIONS;
+
+  return (
+    <select
+      className="field when-time"
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">{emptyLabel}</option>
+      {options.map((t) => (
+        <option key={t} value={t}>
+          {t}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 const TYPE_LABEL: Record<EntryType, string> = {
   task: "task",
   log: "log",
@@ -170,15 +213,13 @@ export function EntryEditForm({
               value={form.dueDate}
               onChange={(e) => onChange((f) => ({ ...f, dueDate: e.target.value }))}
             />
-            <input
-              type="time"
-              className="field when-time"
+            {/* Optional on purpose: most deadlines are a day, not a moment.
+                Left empty, the task is simply due that day. */}
+            <TimeSelect
               value={form.dueTime}
-              // Optional on purpose: most deadlines are a day, not a moment.
-              // Left empty, the task is simply due that day.
-              placeholder="--:--"
               disabled={!form.dueDate}
-              onChange={(e) => onChange((f) => ({ ...f, dueTime: e.target.value }))}
+              emptyLabel="any time"
+              onChange={(v) => onChange((f) => ({ ...f, dueTime: v }))}
             />
           </div>
         </div>
@@ -195,12 +236,11 @@ export function EntryEditForm({
                 value={form.startDate}
                 onChange={(e) => onChange((f) => ({ ...f, startDate: e.target.value }))}
               />
-              <input
-                type="time"
-                className="field when-time"
+              <TimeSelect
                 value={form.startTime}
                 disabled={form.allDay}
-                onChange={(e) => onChange((f) => ({ ...f, startTime: e.target.value }))}
+                emptyLabel="--:--"
+                onChange={(v) => onChange((f) => ({ ...f, startTime: v }))}
               />
             </div>
           </div>
@@ -225,12 +265,11 @@ export function EntryEditForm({
               >
                 all day
               </button>
-              <input
-                type="time"
-                className="field when-time"
+              <TimeSelect
                 value={form.endTime}
                 disabled={form.allDay || !form.startTime}
-                onChange={(e) => onChange((f) => ({ ...f, endTime: e.target.value }))}
+                emptyLabel="--:--"
+                onChange={(v) => onChange((f) => ({ ...f, endTime: v }))}
               />
             </div>
           </div>

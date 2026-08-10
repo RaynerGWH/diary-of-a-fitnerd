@@ -39,9 +39,12 @@ export function formatDueDate(iso: string): string {
 // shifts them onto the neighbouring day.
 export function formatEntryTime(iso: string, allDay: boolean): string {
   if (allDay) return "all day";
+  // hour12 stated outright rather than inherited from the locale: the frame is
+  // too narrow to fit an am/pm suffix, so the clock is 24-hour everywhere.
   return new Date(iso).toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
     timeZone: "Asia/Singapore",
   });
 }

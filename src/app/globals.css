@@ -345,8 +345,7 @@ body {
    frame edge, taking the calendar icon off screen. Dropping the native
    appearance is what makes it obey; line-height holds it to the same height
    as the fields around it. */
-input[type="date"].field,
-input[type="time"].field {
+input[type="date"].field {
   -webkit-appearance: none;
   appearance: none;
   min-width: 0;
@@ -359,13 +358,14 @@ input[type="time"].field {
 .when-row { display: flex; gap: 6px; align-items: stretch; }
 .when-row > * { min-width: 0; }
 .when-row .field { flex: 1 1 0; }
-.when-row .when-time { flex: 0 1 108px; }
+/* Sized for "--:--" plus the select's own arrow. The times are 24-hour, so no
+   room has to be left for an am/pm suffix. */
+.when-row .when-time { flex: 0 0 96px; padding-left: 8px; padding-right: 6px; }
 .when-row .chip-btn { flex: 0 0 auto; }
 .field:disabled { background: var(--paper); color: var(--muted); cursor: not-allowed; }
 /* appearance: none also strips the picker button on WebKit, so the icon is
    put back deliberately, sitting inside the field's right edge. */
-input[type="date"].field::-webkit-calendar-picker-indicator,
-input[type="time"].field::-webkit-calendar-picker-indicator {
+input[type="date"].field::-webkit-calendar-picker-indicator {
   opacity: 1;
   margin-left: 4px;
   cursor: pointer;
