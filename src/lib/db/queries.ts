@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { sgtDayBounds } from "@/lib/time";
+import { sgtDayBounds, sgtMonthBounds } from "@/lib/time";
 import type { ChatMessage, Entry, EntryType, UUID } from "./types";
 
 // Every open task, regardless of due date: genuinely "outstanding", not
@@ -58,6 +58,36 @@ export async function getEntries(
   }
   q = q.order("occurred_at", { ascending: false }).limit(opts.limit ?? 50);
   const { data, error } = await q;
+  if (error) throw error;
+  return (data as Entry[]) ?? [];
+}
+
+// One indexed range scan over calendar_at, which Postgres derives as due_at
+// for tasks and occurred_at for everything else. Undated tasks have a null
+// calendar_at and so never come back. Logs are included deliberately: this is
+// a journal, and "what did I do on the 3rd" is the question the grid exists to
+// answer, so the type filter stays as useful here as it is in the list.
+export async function getCalendarMonth(
+  userId: UUID,
+  year: number,
+  month: number,
+  opts: { category?: string; type?: EntryType; search?: string } = {},
+): Promise<Entry[]> {
+  const { start, end } = sgtMonthBounds(year, month);
+  const supabase = await createClient();
+  let q = supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("calendar_at", start)
+    .lt("calendar_at", end);
+  if (opts.category) q = q.eq("category", opts.category);
+  if (opts.type) q = q.eq("type", opts.type);
+  if (opts.search?.trim()) {
+    const term = sanitizeSearchTerm(opts.search.trim());
+    q = q.or(`title.ilike.%${term}%,body.ilike.%${term}%`);
+  }
+  const { data, error } = await q.order("calendar_at", { ascending: true });
   if (error) throw error;
   return (data as Entry[]) ?? [];
 }

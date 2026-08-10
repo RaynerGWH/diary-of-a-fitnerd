@@ -1,6 +1,7 @@
 "use client";
 
 import { CATEGORIES, type EntryType } from "@/lib/db/types";
+import { sgtDateKey, sgtDayStart } from "@/lib/time";
 
 export type EditForm = {
   type: EntryType;
@@ -33,7 +34,9 @@ export function formFromEntryLike(e: {
     category: e.category,
     title: e.title,
     body: e.body ?? "",
-    dueAt: e.due_at ? e.due_at.slice(0, 10) : "",
+    // Slicing the ISO string took the UTC date, which is the previous day for
+    // anything due in the first eight hours of an SGT day.
+    dueAt: e.due_at ? sgtDateKey(e.due_at) : "",
     amount: e.amount !== null ? String(e.amount) : "",
     currency: e.currency ?? "SGD",
   };
@@ -47,7 +50,9 @@ export function fieldsFromForm(form: EditForm) {
     category: form.category.trim().toLowerCase() || "other",
     title: form.title.trim(),
     body: form.body.trim() || null,
-    dueAt: form.dueAt ? new Date(form.dueAt).toISOString() : null,
+    // A bare "YYYY-MM-DD" parses as UTC midnight, which is 8am the same day in
+    // Singapore. Anchoring to SGT midnight keeps the date the user picked.
+    dueAt: form.dueAt ? sgtDayStart(form.dueAt) : null,
     amount: form.amount.trim() ? Number(form.amount) : null,
     currency: form.amount.trim() ? form.currency.trim().toUpperCase() || "SGD" : null,
   };

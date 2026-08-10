@@ -43,6 +43,14 @@ create table if not exists public.entries (
   status       text check (status in ('open','done','archived')),
   due_at       timestamptz,
   occurred_at  timestamptz not null default now(),
+  -- Calendar fields. ends_at gives an event a duration instead of a single
+  -- instant; all_day marks a date with no meaningful time, which must never be
+  -- put through a clock formatter or it lands on the neighbouring day.
+  ends_at      timestamptz,
+  all_day      boolean not null default false,
+  -- Recurring events are materialized as ordinary rows sharing a series_id,
+  -- so every occurrence stays independently editable, tickable and deletable.
+  series_id    uuid,
   amount       numeric(10,2),
   currency     text,
   source       text not null default 'app' check (source in ('app','telegram')),
@@ -50,11 +58,19 @@ create table if not exists public.entries (
   -- capture_chat below). Surfaced as a badge until fixed or re-logged.
   needs_review boolean not null default false,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  updated_at   timestamptz not null default now(),
+  -- A task belongs on the calendar by its due date, everything else by when it
+  -- happened. Defining that once here keeps a calendar query to a single
+  -- indexed range scan, and undated tasks fall out as null so they never
+  -- appear on the grid.
+  calendar_at  timestamptz
+    generated always as (case when type = 'task' then due_at else occurred_at end) stored
 );
 create index if not exists entries_user_occurred_idx on public.entries (user_id, occurred_at desc);
 create index if not exists entries_user_category_idx on public.entries (user_id, category);
 create index if not exists entries_open_tasks_idx on public.entries (user_id, due_at) where type = 'task' and status = 'open';
+create index if not exists entries_calendar_idx on public.entries (user_id, calendar_at) where calendar_at is not null;
+create index if not exists entries_series_idx on public.entries (user_id, series_id) where series_id is not null;
 
 -- Separate from category: tags are freeform many-to-many, for cross-cutting
 -- labels that don't fit a single category.
