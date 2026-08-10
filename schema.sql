@@ -24,14 +24,12 @@ create table if not exists public.profiles (
   created_at    timestamptz not null default now()
 );
 
--- category is freeform text (school | work | ra | gym | diet | expenditure |
--- other) rather than an enum, so new categories never need a migration.
--- status/due_at apply to tasks only; amount/currency to expenditure entries.
 -- ------------------------------------------------------------
--- ENTRIES: the atomic unit. A task, a log, or an event. ("note" and
--- "log" were never meaningfully distinct, so there's just "log".)
+-- ENTRIES: the atomic unit. A task, a log, or an event.
 -- category is freeform text (school | work | ra | gym | diet |
--- expenditure | other) so new categories never need a migration.
+-- expenditure | other) rather than an enum, so adding one never needs a
+-- migration. status/due_at apply to tasks only; amount/currency to
+-- expenditure entries.
 -- ------------------------------------------------------------
 create table if not exists public.entries (
   id           uuid primary key default gen_random_uuid(),
@@ -43,6 +41,14 @@ create table if not exists public.entries (
   status       text check (status in ('open','done','archived')),
   due_at       timestamptz,
   occurred_at  timestamptz not null default now(),
+  -- Calendar fields. ends_at gives an event a duration instead of a single
+  -- instant; all_day marks a date with no meaningful time, which must never be
+  -- put through a clock formatter or it lands on the neighbouring day.
+  ends_at      timestamptz,
+  all_day      boolean not null default false,
+  -- Recurring events are materialized as ordinary rows sharing a series_id,
+  -- so every occurrence stays independently editable, tickable and deletable.
+  series_id    uuid,
   amount       numeric(10,2),
   currency     text,
   source       text not null default 'app' check (source in ('app','telegram')),
@@ -50,11 +56,19 @@ create table if not exists public.entries (
   -- capture_chat below). Surfaced as a badge until fixed or re-logged.
   needs_review boolean not null default false,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  updated_at   timestamptz not null default now(),
+  -- A task belongs on the calendar by its due date, everything else by when it
+  -- happened. Defining that once here keeps a calendar query to a single
+  -- indexed range scan, and undated tasks fall out as null so they never
+  -- appear on the grid.
+  calendar_at  timestamptz
+    generated always as (case when type = 'task' then due_at else occurred_at end) stored
 );
 create index if not exists entries_user_occurred_idx on public.entries (user_id, occurred_at desc);
 create index if not exists entries_user_category_idx on public.entries (user_id, category);
 create index if not exists entries_open_tasks_idx on public.entries (user_id, due_at) where type = 'task' and status = 'open';
+create index if not exists entries_calendar_idx on public.entries (user_id, calendar_at) where calendar_at is not null;
+create index if not exists entries_series_idx on public.entries (user_id, series_id) where series_id is not null;
 
 -- Separate from category: tags are freeform many-to-many, for cross-cutting
 -- labels that don't fit a single category.
@@ -74,17 +88,10 @@ create table if not exists public.entry_tags (
   primary key (entry_id, tag_id)
 );
 
--- No in-Postgres graph-edge table. The real knowledge graph will live in
--- Neo4j (populated from entries + tags later), so this stays a plain
--- relational store instead of syncing two sources of truth.
-
--- Not wired up yet: exists so the future Telegram bot webhook can be built
--- without another migration.
 -- ------------------------------------------------------------
--- Note: no in-Postgres graph-edge table. The real knowledge graph
--- will live in Neo4j (populated from `entries` + `tags` later, likely
--- via an extraction pass) rather than manually-drawn links here.
--- Keeps one source of truth instead of syncing two.
+-- No in-Postgres graph-edge table. The real knowledge graph lives in Neo4j,
+-- populated from `entries` + `tags` (likely via an extraction pass) rather
+-- than manually-drawn links here. One source of truth instead of two.
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
@@ -141,12 +148,10 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Everything is private to its owner: no shared-read policies, unlike the
--- old Fitnerds! schema, since this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
 -- ROW LEVEL SECURITY
--- Everything is private to its owner. No shared-read policies:
--- unlike Fitnerds, this is a personal journal, not a shared app.
+-- Everything is private to its owner. No shared-read policies anywhere:
+-- this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
 alter table public.allowed_emails enable row level security;
 alter table public.profiles      enable row level security;
@@ -178,10 +183,8 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
   using (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()))
   with check (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()));
 
--- Deliberately no "authenticated" policy on telegram_inbox: only the
--- service_role key (bot webhook, server-side only) may touch this table.
--- telegram_inbox: no client policies. Only the service_role key (bot webhook,
--- server-side only) touches this table. Deliberately no "authenticated" policy.
+-- telegram_inbox has no client policies, deliberately: only the service_role
+-- key (bot webhook, server-side only) may touch this table.
 
 -- allowed_emails likewise has no client policies. Without RLS it would be
 -- world-readable through PostgREST (the anon key is public), handing out the

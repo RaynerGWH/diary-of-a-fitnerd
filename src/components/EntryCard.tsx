@@ -2,8 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toggleTaskStatus, deleteEntry, updateEntry, clearNeedsReview } from "@/app/entries/actions";
-import { formatRelative, formatDueDate } from "@/lib/format";
+import {
+  toggleTaskStatus,
+  deleteEntry,
+  updateEntry,
+  clearNeedsReview,
+  deleteSeries,
+} from "@/app/entries/actions";
+import { formatRelative, formatDueDate, formatAgendaTime } from "@/lib/format";
+import { isOverdue } from "@/lib/calendar";
 import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { Entry, EntryStatus } from "@/lib/db/types";
 
@@ -17,10 +24,14 @@ export function EntryCard({
   entry,
   variant,
   delayClass,
+  // Calendar agenda rows already sit under a date heading, so a relative
+  // "3h ago" there is noise. The clock time is the useful part.
+  showTime,
 }: {
   entry: Entry;
   variant?: "alt";
   delayClass?: string;
+  showTime?: boolean;
 }) {
   const router = useRouter();
   const [localEntry, setLocalEntry] = useState(entry);
@@ -40,8 +51,10 @@ export function EntryCard({
 
   const isTask = localEntry.type === "task";
   const isDone = status === "done";
-  const overdue =
-    isTask && !isDone && localEntry.due_at !== null && new Date(localEntry.due_at) < new Date();
+  // Uses the local status so ticking a task clears the overdue styling
+  // immediately rather than waiting for the refresh to land.
+  const overdue = isOverdue({ ...localEntry, status });
+  const timeLabel = showTime ? formatAgendaTime(localEntry) : "";
 
   async function onToggle() {
     const next = isDone ? "open" : "done";
@@ -61,6 +74,24 @@ export function EntryCard({
       router.refresh();
     } catch {
       setRemoved(false);
+    }
+  }
+
+  // Two taps rather than a confirm dialog: the first turns the badge into the
+  // question, the second answers it. Deleting a whole timetable by accident is
+  // not recoverable, and this app has no modals.
+  const [confirmSeries, setConfirmSeries] = useState(false);
+
+  async function onDeleteSeries() {
+    const seriesId = localEntry.series_id;
+    if (!seriesId) return;
+    setRemoved(true);
+    try {
+      await deleteSeries(seriesId);
+      router.refresh();
+    } catch {
+      setRemoved(false);
+      setConfirmSeries(false);
     }
   }
 
@@ -157,6 +188,23 @@ export function EntryCard({
           >
             <div className={`t ${isDone ? "done" : ""}`}>{localEntry.title}</div>
             {localEntry.body && <div className="b">{localEntry.body}</div>}
+            {localEntry.series_id && (
+              <div className="chips">
+                <button
+                  type="button"
+                  className={`chip ${confirmSeries ? "warn" : ""}`.trim()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (confirmSeries) onDeleteSeries();
+                    else setConfirmSeries(true);
+                  }}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  title="this event repeats weekly"
+                >
+                  {confirmSeries ? "delete every one?" : "repeats"}
+                </button>
+              </div>
+            )}
             {needsReview && (
               <div className="chips">
                 {/* Propagation stops here so confirming doesn't also trip the
@@ -188,7 +236,24 @@ export function EntryCard({
                   </span>
                 </>
               )}
-              {isTask && localEntry.due_at ? (
+              {showTime ? (
+                <>
+                  {/* Empty for logs, which have no timing. Skipped rather than
+                      rendered blank so the separator doesn't dangle. */}
+                  {timeLabel && (
+                    <>
+                      <span>·</span>
+                      <span>{timeLabel}</span>
+                    </>
+                  )}
+                  {overdue && (
+                    <>
+                      <span>·</span>
+                      <span>overdue</span>
+                    </>
+                  )}
+                </>
+              ) : isTask && localEntry.due_at ? (
                 <>
                   <span>·</span>
                   <span>{overdue ? "overdue" : `due ${formatDueDate(localEntry.due_at)}`}</span>

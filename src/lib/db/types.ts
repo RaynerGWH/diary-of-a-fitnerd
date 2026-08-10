@@ -32,12 +32,20 @@ export type Entry = {
   status: EntryStatus | null;
   due_at: string | null;
   occurred_at: string;
+  ends_at: string | null;
+  all_day: boolean;
+  // Set on every occurrence of a recurring event. Occurrences are ordinary
+  // rows, so this is the only thing tying them together.
+  series_id: UUID | null;
   amount: number | null;
   currency: string | null;
   source: EntrySource;
   needs_review: boolean;
   created_at: string;
   updated_at: string;
+  // Generated in Postgres: due_at for tasks, occurred_at otherwise. Null for
+  // undated tasks, which is what keeps them off the calendar.
+  calendar_at: string | null;
 };
 
 export type Tag = {

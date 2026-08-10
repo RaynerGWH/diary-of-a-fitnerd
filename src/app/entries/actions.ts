@@ -53,6 +53,24 @@ export async function clearNeedsReview(entryId: string) {
   revalidatePath("/entries");
 }
 
+// Recurring events are stored as ordinary rows sharing a series_id, so
+// removing a whole timetable entry is a delete by that id. Removing a single
+// occurrence is deleteEntry.
+export async function deleteSeries(seriesId: string) {
+  const user = await requireAllowedUser();
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("entries")
+    .delete()
+    .eq("series_id", seriesId)
+    .eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/");
+  revalidatePath("/entries");
+}
+
 export type EntryEditFields = {
   type: EntryType;
   category: string;
@@ -65,6 +83,12 @@ export type EntryEditFields = {
   // edit that says "mark as done"). Omitted by EntryCard's inline edit,
   // which leaves status alone and lets the dedicated toggle handle it.
   status?: EntryStatus | null;
+  // Events and logs only: when it happens, how long it runs, and whether it
+  // has a clock time at all. Tasks carry no all_day flag, since being due on a
+  // date is not the same thing as filling one.
+  occurredAt?: string;
+  endsAt?: string | null;
+  allDay?: boolean;
 };
 
 export async function updateEntry(entryId: string, fields: EntryEditFields): Promise<Entry> {
@@ -86,6 +110,11 @@ export async function updateEntry(entryId: string, fields: EntryEditFields): Pro
     updated_at: new Date().toISOString(),
   };
   if (fields.status !== undefined) update.status = fields.status;
+  if (fields.occurredAt !== undefined) update.occurred_at = fields.occurredAt;
+  // Cleared alongside the type, so switching an event to a task cannot leave
+  // a stale end time hanging off a row that no longer has a start.
+  update.ends_at = fields.type === "task" ? null : (fields.endsAt ?? null);
+  update.all_day = fields.type === "event" ? (fields.allDay ?? false) : false;
 
   const { data, error } = await supabase
     .from("entries")
@@ -118,7 +147,9 @@ export async function createEntryFromFields(fields: EntryEditFields): Promise<En
       body: fields.body,
       status: fields.type === "task" ? "open" : null,
       due_at: fields.type === "task" ? fields.dueAt : null,
-      occurred_at: new Date().toISOString(),
+      occurred_at: fields.occurredAt ?? new Date().toISOString(),
+      ends_at: fields.type === "task" ? null : (fields.endsAt ?? null),
+      all_day: fields.type === "event" ? (fields.allDay ?? false) : false,
       amount: fields.amount,
       currency: fields.currency,
     })

@@ -1,22 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { sgtDayBounds, sgtMonthBounds } from "@/lib/time";
 import type { ChatMessage, Entry, EntryType, UUID } from "./types";
 
-function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfToday(): Date {
-  const d = new Date();
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-// Every open task, regardless of due date: genuinely "outstanding", not
-// just "due today or overdue or undated" (that narrower set used to be what
-// this returned, which silently hid anything due in the future from the
-// "outstanding tasks" section on home). Soonest-due first, undated tasks
+// Every open task, regardless of due date: genuinely "outstanding", so
+// nothing due later is hidden from home. Soonest-due first, undated tasks
 // last since they carry no urgency signal.
 export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
   const supabase = await createClient();
@@ -32,14 +19,17 @@ export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
 }
 
 export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
+  // "Today" is the Singapore day, not the server's. This runs on Vercel in
+  // UTC, where before 8am SGT the local clock is still on yesterday.
+  const { start, end } = sgtDayBounds();
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("entries")
     .select("*")
     .eq("user_id", userId)
     .in("type", ["log", "event"])
-    .gte("occurred_at", startOfToday().toISOString())
-    .lte("occurred_at", endOfToday().toISOString())
+    .gte("occurred_at", start)
+    .lte("occurred_at", end)
     .order("occurred_at", { ascending: false });
   if (error) throw error;
   return (data as Entry[]) ?? [];
@@ -66,6 +56,55 @@ export async function getEntries(
   }
   q = q.order("occurred_at", { ascending: false }).limit(opts.limit ?? 50);
   const { data, error } = await q;
+  if (error) throw error;
+  return (data as Entry[]) ?? [];
+}
+
+// Today's schedule: things with a clock time, in the order they happen. Logs
+// are excluded here (unlike the calendar grid) because this answers "what is
+// coming up", not "what happened", and home already has a "logged today"
+// section directly underneath.
+export async function getTodaySchedule(userId: UUID): Promise<Entry[]> {
+  const { start, end } = sgtDayBounds();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", userId)
+    .in("type", ["event", "task"])
+    .gte("calendar_at", start)
+    .lte("calendar_at", end)
+    .order("calendar_at", { ascending: true });
+  if (error) throw error;
+  return (data as Entry[]) ?? [];
+}
+
+// One indexed range scan over calendar_at, which Postgres derives as due_at
+// for tasks and occurred_at for everything else. Undated tasks have a null
+// calendar_at and so never come back. Logs are included deliberately: this is
+// a journal, and "what did I do on the 3rd" is the question the grid exists to
+// answer, so the type filter stays as useful here as it is in the list.
+export async function getCalendarMonth(
+  userId: UUID,
+  year: number,
+  month: number,
+  opts: { category?: string; type?: EntryType; search?: string } = {},
+): Promise<Entry[]> {
+  const { start, end } = sgtMonthBounds(year, month);
+  const supabase = await createClient();
+  let q = supabase
+    .from("entries")
+    .select("*")
+    .eq("user_id", userId)
+    .gte("calendar_at", start)
+    .lt("calendar_at", end);
+  if (opts.category) q = q.eq("category", opts.category);
+  if (opts.type) q = q.eq("type", opts.type);
+  if (opts.search?.trim()) {
+    const term = sanitizeSearchTerm(opts.search.trim());
+    q = q.or(`title.ilike.%${term}%,body.ilike.%${term}%`);
+  }
+  const { data, error } = await q.order("calendar_at", { ascending: true });
   if (error) throw error;
   return (data as Entry[]) ?? [];
 }
