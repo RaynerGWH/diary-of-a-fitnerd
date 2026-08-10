@@ -1,4 +1,5 @@
-import { SGT_OFFSET, sgtDateKey, sgtDaysBetween } from "./time";
+import { SGT_OFFSET, sgtDateKey, sgtDaysBetween, taskDueHasTime } from "./time";
+import type { EntryType } from "./db/types";
 
 // All day-boundary comparisons go through SGT day keys rather than the
 // machine's clock. These run during SSR too (EntryCard is a client component,
@@ -49,6 +50,25 @@ export function formatTimeRange(startIso: string, endIso: string | null, allDay:
   const start = formatEntryTime(startIso, allDay);
   if (allDay || !endIso) return start;
   return `${start} to ${formatEntryTime(endIso, false)}`;
+}
+
+// The single answer to "what goes in the time column" on the calendar agenda
+// and the home strip. Tasks read as "due", never "all day": being due on a
+// date is not the same thing as filling one, and all-day is an event property.
+export function formatAgendaTime(entry: {
+  type: EntryType;
+  due_at: string | null;
+  occurred_at: string;
+  calendar_at: string | null;
+  ends_at: string | null;
+  all_day: boolean;
+}): string {
+  if (entry.type === "task") {
+    if (!entry.due_at) return "due";
+    return taskDueHasTime(entry.due_at) ? `due ${formatEntryTime(entry.due_at, false)}` : "due";
+  }
+  if (entry.all_day) return "all day";
+  return formatTimeRange(entry.calendar_at ?? entry.occurred_at, entry.ends_at, false);
 }
 
 export function formatDayHeading(dateKey: string): string {

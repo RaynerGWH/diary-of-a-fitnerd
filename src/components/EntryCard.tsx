@@ -9,7 +9,8 @@ import {
   clearNeedsReview,
   deleteSeries,
 } from "@/app/entries/actions";
-import { formatRelative, formatDueDate, formatTimeRange } from "@/lib/format";
+import { formatRelative, formatDueDate, formatAgendaTime } from "@/lib/format";
+import { isOverdue } from "@/lib/calendar";
 import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { Entry, EntryStatus } from "@/lib/db/types";
 
@@ -50,8 +51,9 @@ export function EntryCard({
 
   const isTask = localEntry.type === "task";
   const isDone = status === "done";
-  const overdue =
-    isTask && !isDone && localEntry.due_at !== null && new Date(localEntry.due_at) < new Date();
+  // Uses the local status so ticking a task clears the overdue styling
+  // immediately rather than waiting for the refresh to land.
+  const overdue = isOverdue({ ...localEntry, status });
 
   async function onToggle() {
     const next = isDone ? "open" : "done";
@@ -236,13 +238,7 @@ export function EntryCard({
               {showTime ? (
                 <>
                   <span>·</span>
-                  <span>
-                    {formatTimeRange(
-                      localEntry.calendar_at ?? localEntry.occurred_at,
-                      localEntry.ends_at,
-                      localEntry.all_day,
-                    )}
-                  </span>
+                  <span>{formatAgendaTime(localEntry)}</span>
                   {overdue && (
                     <>
                       <span>·</span>

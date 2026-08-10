@@ -69,6 +69,26 @@ export function sgtDaysBetween(from: Date | string, to: Date | string): number {
 
 // Human-readable SGT stamp for the capture parser's prompt, which needs the
 // user's wall clock rather than an instant to resolve "tomorrow" against.
+// Composes a "YYYY-MM-DD" and an "HH:MM" back into an absolute instant. The
+// explicit offset is what stops a bare date parsing as UTC midnight, which is
+// 8am here and was putting every due date eight hours off its own day.
+export function sgtInstant(dateKey: string, time = "00:00"): string {
+  return `${dateKey}T${time || "00:00"}:00.000${SGT_OFFSET}`;
+}
+
+export function sgtTimeOfDay(input: Date | string): string {
+  const d = shifted(input);
+  return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+// Tasks have no all-day flag: that is an event property. A task is simply due
+// on a date, and carries a clock time only when one was actually given.
+// A date-only due date is written at SGT midnight (by the edit form and by the
+// parser), so midnight is the sentinel for "no time was specified".
+export function taskDueHasTime(dueAt: string): boolean {
+  return sgtTimeOfDay(dueAt) !== "00:00";
+}
+
 export function sgtDateTimeLabel(input: Date | string = new Date()): string {
   const d = shifted(input);
   const hh = String(d.getUTCHours()).padStart(2, "0");

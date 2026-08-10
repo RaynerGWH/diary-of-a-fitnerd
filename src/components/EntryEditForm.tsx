@@ -1,14 +1,25 @@
 "use client";
 
 import { CATEGORIES, type EntryType } from "@/lib/db/types";
-import { sgtDateKey, sgtDayStart } from "@/lib/time";
+import { sgtDateKey, sgtInstant, sgtTimeOfDay, taskDueHasTime } from "@/lib/time";
 
+// Dates and times are held as the separate strings the inputs actually use,
+// and only composed into an instant on save. Keeping a half-typed date as a
+// Date would mean guessing at what an incomplete value means.
 export type EditForm = {
   type: EntryType;
   category: string;
   title: string;
   body: string;
-  dueAt: string;
+  // Tasks. There is no all-day flag here on purpose: that is an event
+  // property. A task is due on a date, optionally at a time.
+  dueDate: string;
+  dueTime: string;
+  // Events and logs.
+  startDate: string;
+  startTime: string;
+  endTime: string;
+  allDay: boolean;
   amount: string;
   currency: string;
 };
@@ -20,23 +31,34 @@ const TYPE_LABEL: Record<EntryType, string> = {
 };
 const TYPES: EntryType[] = ["task", "log", "event"];
 
-export function formFromEntryLike(e: {
+export type EntryLike = {
   type: EntryType;
   category: string;
   title: string;
   body: string | null;
   due_at: string | null;
+  occurred_at?: string | null;
+  ends_at?: string | null;
+  all_day?: boolean;
   amount: number | null;
   currency: string | null;
-}): EditForm {
+};
+
+export function formFromEntryLike(e: EntryLike): EditForm {
+  const allDay = e.all_day ?? false;
   return {
     type: e.type,
     category: e.category,
     title: e.title,
     body: e.body ?? "",
-    // Slicing the ISO string took the UTC date, which is the previous day for
-    // anything due in the first eight hours of an SGT day.
-    dueAt: e.due_at ? sgtDateKey(e.due_at) : "",
+    dueDate: e.due_at ? sgtDateKey(e.due_at) : "",
+    // Midnight means no time was given, so the field stays empty rather than
+    // showing a 00:00 the user never typed.
+    dueTime: e.due_at && taskDueHasTime(e.due_at) ? sgtTimeOfDay(e.due_at) : "",
+    startDate: e.occurred_at ? sgtDateKey(e.occurred_at) : "",
+    startTime: e.occurred_at && !allDay ? sgtTimeOfDay(e.occurred_at) : "",
+    endTime: e.ends_at && !allDay ? sgtTimeOfDay(e.ends_at) : "",
+    allDay,
     amount: e.amount !== null ? String(e.amount) : "",
     currency: e.currency ?? "SGD",
   };
@@ -45,18 +67,24 @@ export function formFromEntryLike(e: {
 // Inverse of formFromEntryLike: turns the (string-based, input-friendly) form
 // state back into the typed fields the server actions expect.
 export function fieldsFromForm(form: EditForm) {
+  const isTask = form.type === "task";
+  const startDate = form.startDate || sgtDateKey();
+
   return {
     type: form.type,
     category: form.category.trim().toLowerCase() || "other",
     title: form.title.trim(),
     body: form.body.trim() || null,
-    // A bare "YYYY-MM-DD" parses as UTC midnight, which is 8am the same day in
-    // Singapore. Anchoring to SGT midnight keeps the date the user picked.
-    dueAt: form.dueAt ? sgtDayStart(form.dueAt) : null,
-    // The form offers a date with no time, so a due date set here is by
-    // definition all-day. Left undefined when there is none, so editing an
-    // event does not clobber a time it never showed.
-    allDay: form.dueAt ? true : undefined,
+    dueAt: isTask && form.dueDate ? sgtInstant(form.dueDate, form.dueTime) : null,
+    occurredAt: isTask ? undefined : sgtInstant(startDate, form.allDay ? "00:00" : form.startTime),
+    // An end without a start time is not a range, and an end at or before the
+    // start is not a duration, so both collapse to null instead of being
+    // stored as something the calendar would have to defend against.
+    endsAt:
+      !isTask && !form.allDay && form.startTime && form.endTime && form.endTime > form.startTime
+        ? sgtInstant(startDate, form.endTime)
+        : null,
+    allDay: form.type === "event" ? form.allDay : false,
     amount: form.amount.trim() ? Number(form.amount) : null,
     currency: form.amount.trim() ? form.currency.trim().toUpperCase() || "SGD" : null,
   };
@@ -72,6 +100,8 @@ export function EntryEditForm({
   form: EditForm;
   onChange: (updater: (f: EditForm) => EditForm) => void;
 }) {
+  const isTask = form.type === "task";
+
   return (
     <div className="flex flex-col gap-3">
       <div>
@@ -124,15 +154,82 @@ export function EntryEditForm({
         />
       </div>
 
-      {form.type === "task" && (
+      {isTask ? (
         <div>
           <span className="field-label">due</span>
-          <input
-            type="date"
-            className="field"
-            value={form.dueAt}
-            onChange={(e) => onChange((f) => ({ ...f, dueAt: e.target.value }))}
-          />
+          <div className="when-row">
+            <input
+              type="date"
+              className="field"
+              value={form.dueDate}
+              onChange={(e) => onChange((f) => ({ ...f, dueDate: e.target.value }))}
+            />
+            <input
+              type="time"
+              className="field when-time"
+              value={form.dueTime}
+              // Optional on purpose: most deadlines are a day, not a moment.
+              // Left empty, the task is simply due that day.
+              placeholder="--:--"
+              disabled={!form.dueDate}
+              onChange={(e) => onChange((f) => ({ ...f, dueTime: e.target.value }))}
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <div>
+            <span className="field-label">{form.type === "event" ? "starts" : "when"}</span>
+            <div className="when-row">
+              <input
+                type="date"
+                className="field"
+                value={form.startDate}
+                onChange={(e) => onChange((f) => ({ ...f, startDate: e.target.value }))}
+              />
+              <input
+                type="time"
+                className="field when-time"
+                value={form.startTime}
+                disabled={form.allDay}
+                onChange={(e) => onChange((f) => ({ ...f, startTime: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          {form.type === "event" && (
+            <>
+              <div>
+                <span className="field-label">ends</span>
+                <div className="when-row">
+                  <button
+                    type="button"
+                    className={`chip-btn ${form.allDay ? "on" : ""}`}
+                    aria-pressed={form.allDay}
+                    onClick={() =>
+                      onChange((f) => ({
+                        ...f,
+                        allDay: !f.allDay,
+                        // Clearing the times keeps the stored row honest: an
+                        // all-day event has no clock time to fall back to.
+                        startTime: !f.allDay ? "" : f.startTime,
+                        endTime: !f.allDay ? "" : f.endTime,
+                      }))
+                    }
+                  >
+                    all day
+                  </button>
+                  <input
+                    type="time"
+                    className="field when-time"
+                    value={form.endTime}
+                    disabled={form.allDay || !form.startTime}
+                    onChange={(e) => onChange((f) => ({ ...f, endTime: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 

@@ -1,5 +1,5 @@
 import { sortForDay } from "@/lib/calendar";
-import { formatTimeRange } from "@/lib/format";
+import { formatAgendaTime } from "@/lib/format";
 import type { Entry } from "@/lib/db/types";
 
 // Renders nothing on an empty day rather than an empty-state card. Most days
@@ -14,9 +14,7 @@ export function HomeSchedule({ entries }: { entries: Entry[] }) {
       <div className="card alt d2 schedule">
         {sortForDay(entries).map((e) => (
           <div key={e.id} className="schedule-row">
-            <span className="schedule-time">
-              {formatTimeRange(e.calendar_at ?? e.occurred_at, e.ends_at, e.all_day)}
-            </span>
+            <span className="schedule-time">{formatAgendaTime(e)}</span>
             <span className={`schedule-title ${e.status === "done" ? "done" : ""}`.trim()}>
               {e.title}
             </span>

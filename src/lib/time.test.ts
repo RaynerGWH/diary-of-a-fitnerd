@@ -4,8 +4,11 @@ import {
   sgtDayBounds,
   sgtDaysBetween,
   sgtDateTimeLabel,
+  sgtInstant,
   sgtMonthBounds,
+  sgtTimeOfDay,
   sgtWeekday,
+  taskDueHasTime,
 } from "./time";
 
 // The eight hours after SGT midnight are where every one of these used to be
@@ -79,6 +82,32 @@ describe("sgtDaysBetween", () => {
 
   it("is zero within the same SGT day", () => {
     expect(sgtDaysBetween("2026-08-09T16:00:00.000Z", "2026-08-10T15:00:00.000Z")).toBe(0);
+  });
+});
+
+describe("taskDueHasTime", () => {
+  it("treats SGT midnight as no time given", () => {
+    expect(taskDueHasTime("2026-08-14T00:00:00.000+08:00")).toBe(false);
+  });
+
+  it("does not mistake UTC midnight for it", () => {
+    // This is the old 08:00 SGT artifact, which is a real time of day here.
+    expect(taskDueHasTime("2026-08-14T00:00:00.000Z")).toBe(true);
+  });
+
+  it("sees a real time", () => {
+    expect(taskDueHasTime("2026-08-14T17:30:00.000+08:00")).toBe(true);
+  });
+});
+
+describe("sgtInstant", () => {
+  it("anchors a bare date to SGT midnight rather than UTC midnight", () => {
+    expect(sgtInstant("2026-08-14")).toBe("2026-08-14T00:00:00.000+08:00");
+    expect(sgtDateKey(sgtInstant("2026-08-14"))).toBe("2026-08-14");
+  });
+
+  it("composes a time when one is given", () => {
+    expect(sgtTimeOfDay(sgtInstant("2026-08-14", "17:30"))).toBe("17:30");
   });
 });
 

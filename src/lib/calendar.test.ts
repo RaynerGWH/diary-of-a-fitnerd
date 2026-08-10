@@ -5,6 +5,7 @@ import {
   buildMonthGrid,
   expandWeekly,
   groupByDay,
+  isOverdue,
   sortForDay,
 } from "./calendar";
 import type { Entry } from "./db/types";
@@ -116,6 +117,44 @@ describe("expandWeekly", () => {
 
   it("caps a runaway rule", () => {
     expect(expandWeekly(start, null, "2099-01-01")).toHaveLength(MAX_SERIES_OCCURRENCES);
+  });
+});
+
+describe("isOverdue", () => {
+  const friday = "2026-08-14T00:00:00.000+08:00"; // all-day tasks sit at SGT midnight
+  const fridayMorning = new Date("2026-08-14T01:00:00.000Z"); // 9am SGT, same day
+
+  it("does not call an all-day task overdue on the day it is due", () => {
+    const task = entry({ type: "task", status: "open", due_at: friday, all_day: true });
+    expect(isOverdue(task, fridayMorning)).toBe(false);
+  });
+
+  it("calls it overdue once that day has passed", () => {
+    const task = entry({ type: "task", status: "open", due_at: friday, all_day: true });
+    expect(isOverdue(task, new Date("2026-08-15T01:00:00.000Z"))).toBe(true);
+  });
+
+  it("compares instants when a real time was given", () => {
+    const task = entry({
+      type: "task",
+      status: "open",
+      due_at: "2026-08-14T09:00:00.000+08:00",
+      all_day: false,
+    });
+    expect(isOverdue(task, new Date("2026-08-14T02:00:00.000Z"))).toBe(true); // 10am SGT
+    expect(isOverdue(task, new Date("2026-08-14T00:00:00.000Z"))).toBe(false); // 8am SGT
+  });
+
+  it("is never true for a done task, an undated task, or a non-task", () => {
+    expect(
+      isOverdue(entry({ type: "task", status: "done", due_at: friday, all_day: true }), fridayMorning),
+    ).toBe(false);
+    expect(
+      isOverdue(entry({ type: "task", status: "open", due_at: null }), fridayMorning),
+    ).toBe(false);
+    expect(
+      isOverdue(entry({ type: "event", status: null, due_at: friday }), fridayMorning),
+    ).toBe(false);
   });
 });
 

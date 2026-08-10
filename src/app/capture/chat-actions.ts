@@ -158,6 +158,12 @@ export async function sendCaptureMessage(
           amount: u.amount !== undefined ? u.amount : matched.amount,
           currency: u.currency !== undefined ? u.currency : matched.currency,
           status: u.status,
+          // Carried through untouched: the edit resolver has no opinion about
+          // timing, so confirming a title change must not blank an event's
+          // start, end, or all-day flag.
+          occurredAt: matched.occurred_at,
+          endsAt: matched.ends_at,
+          allDay: matched.all_day,
         };
         pending = { kind: "edit", entryId: matched.id, currentTitle: matched.title, fields };
         reply = resolution.uncertain ? `${resolution.reply} (double check this one)` : resolution.reply;

@@ -345,16 +345,27 @@ body {
    frame edge, taking the calendar icon off screen. Dropping the native
    appearance is what makes it obey; line-height holds it to the same height
    as the fields around it. */
-input[type="date"].field {
+input[type="date"].field,
+input[type="time"].field {
   -webkit-appearance: none;
   appearance: none;
   min-width: 0;
   max-width: 100%;
   line-height: 1.35;
 }
+/* Date and time side by side. min-width: 0 on the row's children is what lets
+   them actually shrink: a flex item defaults to its content's minimum width,
+   and a native date control's is wider than half this frame. */
+.when-row { display: flex; gap: 6px; align-items: stretch; }
+.when-row > * { min-width: 0; }
+.when-row .field { flex: 1 1 0; }
+.when-row .when-time { flex: 0 1 108px; }
+.when-row .chip-btn { flex: 0 0 auto; }
+.field:disabled { background: var(--paper); color: var(--muted); cursor: not-allowed; }
 /* appearance: none also strips the picker button on WebKit, so the icon is
    put back deliberately, sitting inside the field's right edge. */
-input[type="date"].field::-webkit-calendar-picker-indicator {
+input[type="date"].field::-webkit-calendar-picker-indicator,
+input[type="time"].field::-webkit-calendar-picker-indicator {
   opacity: 1;
   margin-left: 4px;
   cursor: pointer;

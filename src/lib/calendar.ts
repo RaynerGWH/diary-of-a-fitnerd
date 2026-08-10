@@ -1,5 +1,21 @@
-import { sgtDateKey, sgtDayEnd } from "./time";
+import { sgtDateKey, sgtDayEnd, sgtDaysBetween, taskDueHasTime } from "./time";
 import type { Entry } from "./db/types";
+
+// The single definition of overdue, shared by the card and the calendar dots
+// so the two can never disagree.
+//
+// A task due on a date with no time is due all of that day, and is stored at
+// SGT midnight. Comparing instants would mark it overdue one second into the
+// very day it is due, so the comparison drops to day granularity unless a real
+// time was given.
+export function isOverdue(
+  entry: Pick<Entry, "type" | "status" | "due_at">,
+  now: Date = new Date(),
+): boolean {
+  if (entry.type !== "task" || entry.status !== "open" || !entry.due_at) return false;
+  if (!taskDueHasTime(entry.due_at)) return sgtDaysBetween(now, entry.due_at) < 0;
+  return Date.parse(entry.due_at) < now.getTime();
+}
 
 // Bounds what one message can insert. "Every monday" with a far-off end date
 // is a plausible thing to type, and each occurrence is a real row.

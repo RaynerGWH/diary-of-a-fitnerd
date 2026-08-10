@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { EntryCard } from "./EntryCard";
-import { addMonths, buildMonthGrid, groupByDay, sortForDay } from "@/lib/calendar";
+import { addMonths, buildMonthGrid, groupByDay, isOverdue, sortForDay } from "@/lib/calendar";
 import { formatDayHeading } from "@/lib/format";
 import { sgtDateKey } from "@/lib/time";
 import type { Entry } from "@/lib/db/types";
@@ -15,11 +15,7 @@ const MAX_DOTS = 3;
 // and they map onto tokens that already exist. Per-category colors would need
 // a palette this design system does not have yet.
 function dotClass(entry: Entry): string {
-  if (entry.type === "task") {
-    const overdue =
-      entry.status === "open" && entry.calendar_at !== null && new Date(entry.calendar_at) < new Date();
-    return overdue ? "dot overdue" : "dot task";
-  }
+  if (entry.type === "task") return isOverdue(entry) ? "dot overdue" : "dot task";
   return entry.type === "event" ? "dot event" : "dot log";
 }
 
