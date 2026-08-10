@@ -91,6 +91,11 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Setting only overflow-y computes the x axis from `visible` to `auto`, and
+     touch-action isn't inherited from .phone. Without both, a horizontal drag
+     pans the frame's contents. */
+  overflow-x: hidden;
+  touch-action: pan-y;
 }
 
 /* Scroll still works, the track/thumb just doesn't render, so scrolling
@@ -203,9 +208,10 @@ body {
 .entry { display: flex; gap: 10px; align-items: flex-start; }
 .entry-content { cursor: pointer; border-radius: 8px; }
 .entry-content:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.entry .t { font-weight: 700; font-size: 16px; }
+/* A pasted link is what made content wider than the frame to begin with. */
+.entry .t { font-weight: 700; font-size: 16px; overflow-wrap: break-word; }
 .entry .t.done { text-decoration: line-through; color: var(--muted); }
-.entry .b { font-size: 13.5px; color: var(--muted); margin-top: 2px; white-space: pre-wrap; }
+.entry .b { font-size: 13.5px; color: var(--muted); margin-top: 2px; white-space: pre-wrap; overflow-wrap: break-word; }
 .entry .meta { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .entry .meta.overdue { color: var(--urgent); font-weight: 700; }
 .entry .meta .meta-type { color: var(--accent); font-weight: 700; }
@@ -353,6 +359,9 @@ textarea.field::-webkit-scrollbar { display: none; }
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Same reasoning as .stack. */
+  overflow-x: hidden;
+  touch-action: pan-y;
   padding: 2px 2px 4px;
 }
 .chat-empty {
@@ -380,6 +389,7 @@ textarea.field::-webkit-scrollbar { display: none; }
   font-size: 14px;
   line-height: 1.35;
   box-shadow: 3px 3px 0 var(--ink);
+  overflow-wrap: break-word;
 }
 .bubble.assistant { align-self: flex-start; background: #fff; border-radius: var(--sketch2); }
 .bubble.user { align-self: flex-end; background: var(--accent-soft); border-radius: var(--sketch); }
@@ -457,23 +467,20 @@ textarea.field::-webkit-scrollbar { display: none; }
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
 
-/* Entries filtering. .results re-creates .stack's own column gap because the
-   wrapper is a single flex child of .stack, so the cards inside it would
-   otherwise lose their spacing. While a filter change is in flight the list is
-   dimmed and made inert: it's still showing the previous query's results, and
-   shouldn't look like a current, tappable answer. */
+/* Re-creates .stack's column gap: this wrapper is a single flex child of
+   .stack, so the cards inside it would otherwise lose their spacing. */
 .results {
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+/* Inert, not just dim: these results answer the previous query. */
 .results-stale {
   opacity: 0.45;
   pointer-events: none;
   transition: opacity 120ms ease-in;
 }
-/* Reserves its line whether or not it's filled, so the label appearing
-   mid-filter doesn't nudge the whole list down. */
+/* min-height reserves the line so the label doesn't nudge the list down. */
 .filter-status {
   min-height: 16px;
   font-size: 12.5px;

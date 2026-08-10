@@ -10,11 +10,10 @@ const TYPES: { value: EntryType; label: string }[] = [
   { value: "event", label: "events" },
 ];
 
-// Wraps the results as well as the controls, because the two share one piece
-// of state: whether a filter change is still in flight. Filtering is a server
-// round trip (getEntries re-queries), and Next doesn't render loading.tsx for
-// a search-param change on the same route segment, so nothing on screen moved
-// between the tap and the response.
+// Wraps the results as well as the controls, because both depend on whether a
+// filter change is in flight. Next doesn't render loading.tsx for a
+// search-param change on the same route segment, so without this nothing on
+// screen moves between the tap and the server's response.
 export function EntriesFilters({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -28,10 +27,9 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
   const [searchInput, setSearchInput] = useState(q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // What was just tapped, shown as selected before the server answers.
   // router.push inside a transition leaves searchParams on the old value until
   // the new page commits, so without this the chip you tapped stays visibly
-  // unselected for the whole round trip: worse feedback than before.
+  // unselected for the whole round trip.
   const [pendingType, setPendingType] = useState<string | null>(null);
   const [pendingCategory, setPendingCategory] = useState<string | null>(null);
 
@@ -47,9 +45,8 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
   const shownType = pendingType ?? type;
   const shownCategory = pendingCategory ?? category;
 
-  // Typing counts as loading too. The request hasn't been sent yet during the
-  // debounce, but the list on screen is already answering a stale query, which
-  // is the thing the indicator is there to communicate.
+  // Typing counts as loading: the debounced request hasn't been sent yet, but
+  // the list on screen is already answering a stale query.
   const loading = isPending || searchInput !== q;
 
   function updateParams(next: Record<string, string>) {

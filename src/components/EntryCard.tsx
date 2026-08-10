@@ -159,11 +159,8 @@ export function EntryCard({
             {localEntry.body && <div className="b">{localEntry.body}</div>}
             {needsReview && (
               <div className="chips">
-                {/* Both halves of "review" are reachable: tapping the badge
-                    confirms it as-is, tapping the card body (as anywhere
-                    else) opens the edit form, which clears it on save.
-                    Propagation is stopped so the badge doesn't also trigger
-                    the card's own open-to-edit handlers. */}
+                {/* Propagation stops here so confirming doesn't also trip the
+                    card's own open-to-edit handlers. */}
                 <button
                   type="button"
                   className="chip warn"
