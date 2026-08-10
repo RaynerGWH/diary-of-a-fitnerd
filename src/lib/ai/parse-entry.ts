@@ -71,7 +71,7 @@ Each entry object:
 - body: optional extra detail, or null.
 - dueAt: ISO 8601 datetime, only for tasks with a due date, else null.
 - occurredAt: ISO 8601 datetime this happened/happens, else null to default to now.
-- endsAt: ISO 8601 datetime this finishes, only when a duration or end time is given ("tutorial 2 to 4pm"), else null.
+- endsAt: events only, ISO 8601 datetime this finishes, when a duration or end time is given ("tutorial 2 to 4pm"), else null. Tasks and logs have no end time.
 - allDay: events only, true when the event fills a whole day ("public holiday on the 9th", "camp on saturday"). Always false for tasks and logs: a task being due on a date is not the same thing as filling that date.
 - For a task due on a date with no time given ("submit by friday"), set dueAt to 00:00 on that date in ${SGT_OFFSET}. Midnight is how "no particular time" is recorded, so never invent a plausible-looking time like 09:00 or 17:00.
 - repeat: {"freq":"weekly","until":"YYYY-MM-DD"} when something recurs weekly ("every monday", "tutorials every tuesday till 14 nov"). Only weekly recurrence is supported: if it repeats on any other cadence, set this to null and note it in uncertainFields. If a weekly thing has no stated end, use the last day of the current semester as a sensible bound, roughly 15 weeks out.
@@ -129,7 +129,10 @@ function validateEntryDraft(raw: unknown, fallbackTitle: string): NewEntryDraft 
   // An end before its start is not a duration, so it is dropped rather than
   // stored as a negative-length event the calendar would have to defend against.
   const endsAt =
-    isValidIsoDate(r.endsAt) && occurredAt !== null && Date.parse(r.endsAt) > Date.parse(occurredAt)
+    type === "event" &&
+    isValidIsoDate(r.endsAt) &&
+    occurredAt !== null &&
+    Date.parse(r.endsAt) > Date.parse(occurredAt)
       ? r.endsAt
       : null;
   // Events only, whatever the model says: an all-day task is not a concept.

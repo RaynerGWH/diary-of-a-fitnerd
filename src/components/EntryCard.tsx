@@ -54,6 +54,7 @@ export function EntryCard({
   // Uses the local status so ticking a task clears the overdue styling
   // immediately rather than waiting for the refresh to land.
   const overdue = isOverdue({ ...localEntry, status });
+  const timeLabel = showTime ? formatAgendaTime(localEntry) : "";
 
   async function onToggle() {
     const next = isDone ? "open" : "done";
@@ -237,8 +238,14 @@ export function EntryCard({
               )}
               {showTime ? (
                 <>
-                  <span>·</span>
-                  <span>{formatAgendaTime(localEntry)}</span>
+                  {/* Empty for logs, which have no timing. Skipped rather than
+                      rendered blank so the separator doesn't dangle. */}
+                  {timeLabel && (
+                    <>
+                      <span>·</span>
+                      <span>{timeLabel}</span>
+                    </>
+                  )}
                   {overdue && (
                     <>
                       <span>·</span>

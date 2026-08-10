@@ -66,8 +66,11 @@ export function formFromEntryLike(e: EntryLike): EditForm {
 
 // Inverse of formFromEntryLike: turns the (string-based, input-friendly) form
 // state back into the typed fields the server actions expect.
+// Only tasks and events carry timings. A log is a record of something that
+// happened; occurredAt stays undefined for one so editing it never rewrites
+// when it happened, which would move it to a different day on the calendar.
 export function fieldsFromForm(form: EditForm) {
-  const isTask = form.type === "task";
+  const isEvent = form.type === "event";
   const startDate = form.startDate || sgtDateKey();
 
   return {
@@ -75,16 +78,16 @@ export function fieldsFromForm(form: EditForm) {
     category: form.category.trim().toLowerCase() || "other",
     title: form.title.trim(),
     body: form.body.trim() || null,
-    dueAt: isTask && form.dueDate ? sgtInstant(form.dueDate, form.dueTime) : null,
-    occurredAt: isTask ? undefined : sgtInstant(startDate, form.allDay ? "00:00" : form.startTime),
+    dueAt: form.type === "task" && form.dueDate ? sgtInstant(form.dueDate, form.dueTime) : null,
+    occurredAt: isEvent ? sgtInstant(startDate, form.allDay ? "00:00" : form.startTime) : undefined,
     // An end without a start time is not a range, and an end at or before the
     // start is not a duration, so both collapse to null instead of being
     // stored as something the calendar would have to defend against.
     endsAt:
-      !isTask && !form.allDay && form.startTime && form.endTime && form.endTime > form.startTime
+      isEvent && !form.allDay && form.startTime && form.endTime && form.endTime > form.startTime
         ? sgtInstant(startDate, form.endTime)
         : null,
-    allDay: form.type === "event" ? form.allDay : false,
+    allDay: isEvent ? form.allDay : false,
     amount: form.amount.trim() ? Number(form.amount) : null,
     currency: form.amount.trim() ? form.currency.trim().toUpperCase() || "SGD" : null,
   };
@@ -101,6 +104,7 @@ export function EntryEditForm({
   onChange: (updater: (f: EditForm) => EditForm) => void;
 }) {
   const isTask = form.type === "task";
+  const isEvent = form.type === "event";
 
   return (
     <div className="flex flex-col gap-3">
@@ -154,7 +158,9 @@ export function EntryEditForm({
         />
       </div>
 
-      {isTask ? (
+      {/* Logs get no timing controls at all: they record that something
+          happened, not when it is scheduled for. */}
+      {isTask && (
         <div>
           <span className="field-label">due</span>
           <div className="when-row">
@@ -176,10 +182,12 @@ export function EntryEditForm({
             />
           </div>
         </div>
-      ) : (
+      )}
+
+      {isEvent && (
         <div className="flex flex-col gap-3">
           <div>
-            <span className="field-label">{form.type === "event" ? "starts" : "when"}</span>
+            <span className="field-label">starts</span>
             <div className="when-row">
               <input
                 type="date"
@@ -197,39 +205,35 @@ export function EntryEditForm({
             </div>
           </div>
 
-          {form.type === "event" && (
-            <>
-              <div>
-                <span className="field-label">ends</span>
-                <div className="when-row">
-                  <button
-                    type="button"
-                    className={`chip-btn ${form.allDay ? "on" : ""}`}
-                    aria-pressed={form.allDay}
-                    onClick={() =>
-                      onChange((f) => ({
-                        ...f,
-                        allDay: !f.allDay,
-                        // Clearing the times keeps the stored row honest: an
-                        // all-day event has no clock time to fall back to.
-                        startTime: !f.allDay ? "" : f.startTime,
-                        endTime: !f.allDay ? "" : f.endTime,
-                      }))
-                    }
-                  >
-                    all day
-                  </button>
-                  <input
-                    type="time"
-                    className="field when-time"
-                    value={form.endTime}
-                    disabled={form.allDay || !form.startTime}
-                    onChange={(e) => onChange((f) => ({ ...f, endTime: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </>
-          )}
+          <div>
+            <span className="field-label">ends</span>
+            <div className="when-row">
+              <button
+                type="button"
+                className={`chip-btn ${form.allDay ? "on" : ""}`}
+                aria-pressed={form.allDay}
+                onClick={() =>
+                  onChange((f) => ({
+                    ...f,
+                    allDay: !f.allDay,
+                    // Clearing the times keeps the stored row honest: an
+                    // all-day event has no clock time to fall back to.
+                    startTime: !f.allDay ? "" : f.startTime,
+                    endTime: !f.allDay ? "" : f.endTime,
+                  }))
+                }
+              >
+                all day
+              </button>
+              <input
+                type="time"
+                className="field when-time"
+                value={form.endTime}
+                disabled={form.allDay || !form.startTime}
+                onChange={(e) => onChange((f) => ({ ...f, endTime: e.target.value }))}
+              />
+            </div>
+          </div>
         </div>
       )}
 

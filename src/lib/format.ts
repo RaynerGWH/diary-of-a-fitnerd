@@ -53,8 +53,12 @@ export function formatTimeRange(startIso: string, endIso: string | null, allDay:
 }
 
 // The single answer to "what goes in the time column" on the calendar agenda
-// and the home strip. Tasks read as "due", never "all day": being due on a
-// date is not the same thing as filling one, and all-day is an event property.
+// and the home strip.
+//
+// Only tasks and events have timings. A log records that something happened on
+// a day, not at a scheduled moment, so it gets no time at all. Tasks read as
+// "due", never "all day": being due on a date is not the same thing as filling
+// one, and all-day is an event property.
 export function formatAgendaTime(entry: {
   type: EntryType;
   due_at: string | null;
@@ -63,6 +67,7 @@ export function formatAgendaTime(entry: {
   ends_at: string | null;
   all_day: boolean;
 }): string {
+  if (entry.type === "log") return "";
   if (entry.type === "task") {
     if (!entry.due_at) return "due";
     return taskDueHasTime(entry.due_at) ? `due ${formatEntryTime(entry.due_at, false)}` : "due";
