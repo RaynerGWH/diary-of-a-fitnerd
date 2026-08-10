@@ -79,6 +79,19 @@ export function formatAgendaTime(entry: {
   return formatTimeRange(entry.calendar_at ?? entry.occurred_at, entry.ends_at, false);
 }
 
+// Separate from formatEntryTime because only the home clock wants seconds:
+// an agenda row showing "14:30:00" would be claiming a precision the entry
+// does not have.
+export function formatClockTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Singapore",
+  });
+}
+
 export function formatDayHeading(dateKey: string): string {
   return new Date(`${dateKey}T12:00:00${SGT_OFFSET}`).toLocaleDateString("en-GB", {
     weekday: "long",

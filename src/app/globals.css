@@ -560,7 +560,8 @@ textarea.field::-webkit-scrollbar { display: none; }
 }
 
 /* home clock: the top of the page reads like a lock screen, date above a large
-   time. No seconds, same as iOS, which also keeps it to one repaint a minute. */
+   time. Sized for "00:00:00": eight characters, so it runs smaller than a
+   bare hh:mm would to stay inside the frame. */
 .clock { text-align: center; margin-top: 2px; }
 .clock-date {
   font-size: 12.5px;
@@ -570,8 +571,8 @@ textarea.field::-webkit-scrollbar { display: none; }
 }
 .clock-time {
   font-family: var(--font-newsreader), Georgia, serif;
-  font-size: clamp(52px, 17vw, 70px);
-  line-height: 1.04;
+  font-size: clamp(42px, 13.5vw, 58px);
+  line-height: 1.06;
   letter-spacing: -.02em;
   /* Fixed-width digits, so the clock doesn't twitch sideways as they change. */
   font-variant-numeric: tabular-nums;
