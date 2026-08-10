@@ -274,9 +274,8 @@ body {
   padding: 5px 14px;
   border-radius: var(--sketch-pill);
 }
-/* Where you are, in the app's own green, on a soft pill. Colour alone on the
-   label was easy to miss at this size, and the icon kept its inactive stroke
-   regardless, which made the whole thing read as unselected. */
+/* Where you are, in the app's own green. The pill and the icon stroke both
+   carry it, because colour on the label alone is easy to miss at this size. */
 .nav a.on { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
 .nav a.on .doodle { stroke: var(--accent); }
 .nav svg { width: 24px; height: 24px; }
@@ -518,9 +517,9 @@ textarea.field::-webkit-scrollbar { display: none; }
 
 /* /entries owns its own scrolling: the pane fills .stack exactly, so the stack
    never scrolls, the controls stay pinned, and .results is the only thing that
-   moves. Scrolling the list away from the filter you are using was the problem.
-   The x axis and touch-action are pinned for the same reason as .stack: setting
-   only overflow-y computes the other axis to auto and makes this pan sideways. */
+   moves. The x axis and touch-action are pinned for the same reason as .stack:
+   setting only overflow-y computes the other axis to auto and lets this pan
+   sideways. */
 .entries-pane {
   flex: 1;
   min-height: 0;
@@ -572,7 +571,6 @@ textarea.field::-webkit-scrollbar { display: none; }
 /* home clock: the top of the page reads like a lock screen, date above a large
    time. Sized for "00:00:00": eight characters, so it runs smaller than a
    bare hh:mm would to stay inside the frame. */
-/* Nudged down off the frame's notch pill so it has a little air above it. */
 .clock { text-align: center; margin-top: 14px; }
 .clock-date {
   font-size: 12.5px;

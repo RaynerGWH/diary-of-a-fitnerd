@@ -11,8 +11,8 @@ import {
   taskDueHasTime,
 } from "./time";
 
-// The eight hours after SGT midnight are where every one of these used to be
-// wrong, so most cases sit deliberately inside that window.
+// The eight hours after SGT midnight are the window where a UTC clock and a
+// Singapore one disagree, so most cases sit deliberately inside it.
 describe("sgtDateKey", () => {
   it("reads an instant late in the UTC day as the next SGT day", () => {
     expect(sgtDateKey("2026-08-09T23:00:00.000Z")).toBe("2026-08-10");
@@ -91,7 +91,7 @@ describe("taskDueHasTime", () => {
   });
 
   it("does not mistake UTC midnight for it", () => {
-    // This is the old 08:00 SGT artifact, which is a real time of day here.
+    // UTC midnight is 08:00 in Singapore, which is a real time of day.
     expect(taskDueHasTime("2026-08-14T00:00:00.000Z")).toBe(true);
   });
 

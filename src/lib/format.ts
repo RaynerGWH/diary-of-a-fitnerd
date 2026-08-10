@@ -3,8 +3,8 @@ import type { EntryType } from "./db/types";
 
 // All day-boundary comparisons go through SGT day keys rather than the
 // machine's clock. These run during SSR too (EntryCard is a client component,
-// but Next still renders it on the server), so relying on local time meant the
-// server and the browser could disagree about what day it is.
+// but Next still renders it on the server), and local time would let the
+// server and the browser disagree about what day it is.
 const DAY_MONTH: Intl.DateTimeFormatOptions = {
   month: "short",
   day: "numeric",

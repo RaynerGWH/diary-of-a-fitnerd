@@ -202,8 +202,6 @@ export async function sendCaptureMessage(
     // A weekly rule becomes N ordinary rows sharing a series_id, rather than a
     // rule the reader has to expand. Each occurrence is then a normal entry.
     if (e.repeat) {
-      // Annotated because randomUUID's template-literal return type will not
-      // unify with the null in the single-entry branch below.
       const seriesId: string = randomUUID();
       return expandWeekly(startsAt, e.endsAt, e.repeat.until).map((occ) => ({
         ...base,

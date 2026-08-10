@@ -54,8 +54,8 @@ export async function clearNeedsReview(entryId: string) {
 }
 
 // Recurring events are stored as ordinary rows sharing a series_id, so
-// removing a whole timetable entry is a delete by that id. Deleting a single
-// occurrence is just deleteEntry, unchanged.
+// removing a whole timetable entry is a delete by that id. Removing a single
+// occurrence is deleteEntry.
 export async function deleteSeries(seriesId: string) {
   const user = await requireAllowedUser();
   const supabase = await createClient();

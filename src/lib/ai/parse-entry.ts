@@ -45,9 +45,9 @@ export type ParseResult =
   | { intent: "edit"; editQuery: string };
 
 function buildSystemPrompt(now: Date): string {
-  // The user's wall clock, not the server's. This runs on Vercel in UTC, so
-  // deriving the weekday from the raw instant named the wrong day for the
-  // eight hours after SGT midnight, and "friday" resolved a day early.
+  // The user's wall clock, not the server's. This runs on Vercel in UTC, where
+  // the raw instant names the wrong weekday for the eight hours after SGT
+  // midnight, which is enough to resolve "friday" a day early.
   return `You are the parser behind a personal daily-ops journal's chat capture box.
 
 Current date/time: ${sgtDateTimeLabel(now)} Singapore time (${sgtWeekday(now)}). Resolve relative dates ("tomorrow", "friday") against this. Every date you return must be ISO 8601 carrying the ${SGT_OFFSET} offset.

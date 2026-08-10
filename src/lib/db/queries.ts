@@ -22,7 +22,7 @@ export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
 
 export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
   // "Today" is the Singapore day, not the server's. This runs on Vercel in
-  // UTC, so before 8am SGT the old local-clock version was still on yesterday.
+  // UTC, where before 8am SGT the local clock is still on yesterday.
   const { start, end } = sgtDayBounds();
   const supabase = await createClient();
   const { data, error } = await supabase

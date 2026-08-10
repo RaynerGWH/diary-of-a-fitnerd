@@ -1,8 +1,7 @@
 // Every date boundary in this app is Singapore time, never the machine's.
-// Server code runs on Vercel in UTC, so anything computed from a bare
-// `new Date()` was eight hours out: between midnight and 8am SGT the server
-// is still on the previous UTC day, which put "today" on the wrong date on
-// home and gave the capture parser the wrong weekday.
+// Server code runs on Vercel in UTC, so a bare `new Date()` is eight hours
+// out: between midnight and 8am SGT the server is still on the previous UTC
+// day.
 //
 // Singapore has no DST and has been permanently UTC+8 for decades, so a fixed
 // offset is exactly correct. That is what lets all of this be arithmetic
@@ -71,7 +70,7 @@ export function sgtDaysBetween(from: Date | string, to: Date | string): number {
 // user's wall clock rather than an instant to resolve "tomorrow" against.
 // Composes a "YYYY-MM-DD" and an "HH:MM" back into an absolute instant. The
 // explicit offset is what stops a bare date parsing as UTC midnight, which is
-// 8am here and was putting every due date eight hours off its own day.
+// 8am here and lands the value eight hours off the date that was picked.
 export function sgtInstant(dateKey: string, time = "00:00"): string {
   return `${dateKey}T${time || "00:00"}:00.000${SGT_OFFSET}`;
 }
