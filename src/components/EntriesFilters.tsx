@@ -23,6 +23,7 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
   const type = searchParams.get("type") ?? "";
   const category = searchParams.get("category") ?? "";
   const q = searchParams.get("q") ?? "";
+  const view = searchParams.get("view") === "calendar" ? "calendar" : "list";
 
   const [searchInput, setSearchInput] = useState(q);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -78,6 +79,22 @@ export function EntriesFilters({ children }: { children: ReactNode }) {
   return (
     <>
       <div className="flex flex-col gap-2">
+        <div className="view-toggle">
+          {(["list", "calendar"] as const).map((v) => (
+            <button
+              key={v}
+              type="button"
+              className={`view-btn ${view === v ? "on" : ""}`}
+              aria-pressed={view === v}
+              // Clearing month on the way out keeps a stale month from
+              // reappearing the next time the calendar is opened.
+              onClick={() => updateParams({ view: v === "list" ? "" : v, month: "" })}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+
         <input
           type="search"
           className="field"

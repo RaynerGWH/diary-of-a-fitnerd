@@ -499,12 +499,88 @@ textarea.field::-webkit-scrollbar { display: none; }
   pointer-events: none;
   transition: opacity 120ms ease-in;
 }
+/* list / calendar switch: two halves of one control, so it reads as a mode
+   toggle rather than two independent buttons. */
+.view-toggle { display: flex; gap: 0; border: 2.5px solid var(--ink); border-radius: var(--sketch-pill); overflow: hidden; }
+.view-btn {
+  font-family: inherit;
+  flex: 1;
+  font-size: 13px;
+  padding: 6px 0;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+}
+.view-btn.on { background: var(--accent); color: #fff; font-weight: 700; }
+
 /* min-height reserves the line so the label doesn't nudge the list down. */
 .filter-status {
   min-height: 16px;
   font-size: 12.5px;
   color: var(--muted);
 }
+
+/* calendar */
+.cal { display: flex; flex-direction: column; gap: 16px; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-title {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+.cal-nav {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: var(--sketch-pill);
+  background: #fff;
+  cursor: pointer;
+}
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.cal-day {
+  font-family: inherit;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 2px solid transparent;
+  border-radius: var(--sketch-chip);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+.cal-num { font-size: 13px; line-height: 1; }
+/* Days outside the month stay visible rather than blank: the grid reads as a
+   continuous strip of time, and entries either side of a month boundary are
+   still real. */
+.cal-day.muted .cal-num { color: var(--muted); opacity: .5; }
+.cal-day.today { border-color: var(--ink); border-style: dashed; }
+.cal-day.on { background: var(--accent); border-color: var(--ink); }
+.cal-day.on .cal-num { color: #fff; font-weight: 700; }
+/* Reserves the dot row's height on every cell so days with entries do not
+   sit a few pixels taller than empty ones. */
+.cal-dots { display: flex; gap: 2px; height: 5px; align-items: center; }
+.cal-dots .dot { width: 5px; height: 5px; border-radius: 50%; }
+.dot.task { background: var(--accent); }
+.dot.event { background: var(--ink); }
+.dot.log { background: var(--muted); }
+.dot.overdue { background: var(--urgent); }
+.cal-day.on .dot.task,
+.cal-day.on .dot.event,
+.cal-day.on .dot.log { background: #fff; }
+.cal-agenda-label { margin-top: 2px; }
 
 /* pending chat-capture label: blinks continuously so the "still working"
    state is visible even between the every-3s word swaps. */

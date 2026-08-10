@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toggleTaskStatus, deleteEntry, updateEntry, clearNeedsReview } from "@/app/entries/actions";
-import { formatRelative, formatDueDate } from "@/lib/format";
+import { formatRelative, formatDueDate, formatTimeRange } from "@/lib/format";
 import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { Entry, EntryStatus } from "@/lib/db/types";
 
@@ -17,10 +17,14 @@ export function EntryCard({
   entry,
   variant,
   delayClass,
+  // Calendar agenda rows already sit under a date heading, so a relative
+  // "3h ago" there is noise. The clock time is the useful part.
+  showTime,
 }: {
   entry: Entry;
   variant?: "alt";
   delayClass?: string;
+  showTime?: boolean;
 }) {
   const router = useRouter();
   const [localEntry, setLocalEntry] = useState(entry);
@@ -188,7 +192,24 @@ export function EntryCard({
                   </span>
                 </>
               )}
-              {isTask && localEntry.due_at ? (
+              {showTime ? (
+                <>
+                  <span>·</span>
+                  <span>
+                    {formatTimeRange(
+                      localEntry.calendar_at ?? localEntry.occurred_at,
+                      localEntry.ends_at,
+                      localEntry.all_day,
+                    )}
+                  </span>
+                  {overdue && (
+                    <>
+                      <span>·</span>
+                      <span>overdue</span>
+                    </>
+                  )}
+                </>
+              ) : isTask && localEntry.due_at ? (
                 <>
                   <span>·</span>
                   <span>{overdue ? "overdue" : `due ${formatDueDate(localEntry.due_at)}`}</span>
