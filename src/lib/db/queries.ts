@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { sgtDayBounds, sgtMonthBounds } from "@/lib/time";
-import type { ChatMessage, Entry, EntryType, UUID } from "./types";
+import type { ChatMessage, Entry, EntryType, JobListing, JobStatus, UUID } from "./types";
 
 // Every open task, regardless of due date: genuinely "outstanding", so
 // nothing due later is hidden from home. Soonest-due first, undated tasks
@@ -157,3 +157,42 @@ export async function getRecentChatMessages(
   return (data as ChatMessage[]) ?? [];
 }
 
+// The jobs board. Dismissed listings are excluded unless asked for by name:
+// they are kept rather than deleted so the connector's next run doesn't
+// re-add something already turned down, but they are not worth looking at.
+export async function getJobListings(
+  userId: UUID,
+  opts: { status?: JobStatus; limit?: number } = {},
+): Promise<JobListing[]> {
+  const { status, limit = 100 } = opts;
+  const supabase = await createClient();
+  let query = supabase.from("job_listings").select("*").eq("user_id", userId);
+
+  if (status) query = query.eq("status", status);
+  else query = query.neq("status", "dismissed");
+
+  // Soonest deadline first so anything closing is impossible to miss, with
+  // undated listings after them by recency.
+  const { data, error } = await query
+    .order("deadline", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data as JobListing[]) ?? [];
+}
+
+// Drives the counts on the /jobs filter row.
+export async function getJobStatusCounts(userId: UUID): Promise<Record<JobStatus, number>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("job_listings")
+    .select("status")
+    .eq("user_id", userId);
+  if (error) throw error;
+
+  const counts: Record<JobStatus, number> = { new: 0, saved: 0, applied: 0, dismissed: 0 };
+  for (const row of (data as { status: JobStatus }[]) ?? []) {
+    if (row.status in counts) counts[row.status] += 1;
+  }
+  return counts;
+}
