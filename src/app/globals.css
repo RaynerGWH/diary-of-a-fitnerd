@@ -240,6 +240,9 @@ body {
   cursor: pointer;
 }
 .chip.hi { background: var(--hi); font-weight: 700; }
+/* An empty category filters to nothing. Faded and inert rather than just
+   faded, so it reads as unavailable instead of merely quiet. */
+.chip:disabled { opacity: .45; cursor: not-allowed; }
 
 /* chip-select: tap-to-choose group used by the capture form */
 .chip-select { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -268,8 +271,13 @@ body {
   display: flex; flex-direction: column; align-items: center;
   gap: 2px; font-size: 11.5px; color: var(--muted);
   text-decoration: none;
+  padding: 5px 14px;
+  border-radius: var(--sketch-pill);
 }
-.nav a.on { color: var(--ink); font-weight: 700; }
+/* Where you are, in the app's own green. The pill and the icon stroke both
+   carry it, because colour on the label alone is easy to miss at this size. */
+.nav a.on { color: var(--accent); font-weight: 700; background: var(--accent-soft); }
+.nav a.on .doodle { stroke: var(--accent); }
 .nav svg { width: 24px; height: 24px; }
 
 /* hand-drawn SVG style */
@@ -352,6 +360,27 @@ input[type="date"].field {
   max-width: 100%;
   line-height: 1.35;
 }
+/* Date and time side by side. min-width: 0 on the row's children is what lets
+   them actually shrink: a flex item defaults to its content's minimum width,
+   and a native date control's is wider than half this frame. */
+.when-row { display: flex; gap: 6px; align-items: stretch; }
+.when-row > * { min-width: 0; }
+.when-row .field { flex: 1 1 0; }
+/* Reads as a value, not a dropdown: the arrow is dropped so it sits beside the
+   date field as a plain time. It is still a select, so tapping it opens the
+   native picker. background-image goes too, since Firefox draws the arrow
+   there rather than through appearance. */
+.when-row .when-time {
+  flex: 0 0 84px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: none;
+  text-align: center;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.when-row .chip-btn { flex: 0 0 auto; }
+.field:disabled { background: var(--paper); color: var(--muted); cursor: not-allowed; }
 /* appearance: none also strips the picker button on WebKit, so the icon is
    put back deliberately, sitting inside the field's right edge. */
 input[type="date"].field::-webkit-calendar-picker-indicator {
@@ -486,25 +515,169 @@ textarea.field::-webkit-scrollbar { display: none; }
 
 .chip.warn { background: var(--urgent-soft); border-color: var(--urgent); color: var(--urgent); font-weight: 700; }
 
-/* Re-creates .stack's column gap: this wrapper is a single flex child of
-   .stack, so the cards inside it would otherwise lose their spacing. */
-.results {
+/* /entries owns its own scrolling: the pane fills .stack exactly, so the stack
+   never scrolls, the controls stay pinned, and .results is the only thing that
+   moves. The x axis and touch-action are pinned for the same reason as .stack:
+   setting only overflow-y computes the other axis to auto and lets this pan
+   sideways. */
+.entries-pane {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.results::-webkit-scrollbar { display: none; }
 /* Inert, not just dim: these results answer the previous query. */
 .results-stale {
   opacity: 0.45;
   pointer-events: none;
   transition: opacity 120ms ease-in;
 }
+/* list / calendar switch: two halves of one control, so it reads as a mode
+   toggle rather than two independent buttons. */
+.view-toggle { display: flex; gap: 0; border: 2.5px solid var(--ink); border-radius: var(--sketch-pill); overflow: hidden; }
+.view-btn {
+  font-family: inherit;
+  flex: 1;
+  font-size: 13px;
+  padding: 6px 0;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+}
+.view-btn.on { background: var(--accent); color: #fff; font-weight: 700; }
+
 /* min-height reserves the line so the label doesn't nudge the list down. */
 .filter-status {
   min-height: 16px;
   font-size: 12.5px;
   color: var(--muted);
 }
+
+/* home clock: the top of the page reads like a lock screen, date above a large
+   time. Sized for "00:00:00": eight characters, so it runs smaller than a
+   bare hh:mm would to stay inside the frame. */
+.clock { text-align: center; margin-top: 14px; }
+.clock-date {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .01em;
+}
+.clock-time {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: clamp(42px, 13.5vw, 58px);
+  line-height: 1.06;
+  letter-spacing: -.02em;
+  /* Fixed-width digits, so the clock doesn't twitch sideways as they change. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* home "today" strip: one card, one line per thing, times aligned in their
+   own column so the day can be scanned down the left edge. */
+.schedule { display: flex; flex-direction: column; gap: 7px; }
+.schedule-row { display: flex; gap: 10px; align-items: baseline; font-size: 14px; }
+.schedule-time {
+  flex: 0 0 auto;
+  min-width: 52px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.schedule-title { overflow-wrap: break-word; min-width: 0; }
+.schedule-title.done { text-decoration: line-through; color: var(--muted); }
+
+/* calendar */
+/* Fills .results rather than scrolling inside it, so the month grid stays put
+   and .cal-agenda below is what scrolls. */
+.cal { display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
+.cal-head,
+.cal-grid { flex-shrink: 0; }
+.cal-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  touch-action: pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.cal-agenda::-webkit-scrollbar { display: none; }
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cal-title {
+  font-family: var(--font-newsreader), Georgia, serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+.cal-nav {
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 6px 12px;
+  border: 2.5px solid var(--ink);
+  border-radius: var(--sketch-pill);
+  background: #fff;
+  cursor: pointer;
+}
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.cal-dow {
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  padding-bottom: 2px;
+}
+.cal-day {
+  font-family: inherit;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 2px solid transparent;
+  border-radius: var(--sketch-chip);
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+.cal-num { font-size: 13px; line-height: 1; }
+/* Days outside the month stay visible rather than blank: the grid reads as a
+   continuous strip of time, and entries either side of a month boundary are
+   still real. */
+.cal-day.muted .cal-num { color: var(--muted); opacity: .5; }
+.cal-day.today { border-color: var(--ink); border-style: dashed; }
+.cal-day.on { background: var(--accent); border-color: var(--ink); }
+.cal-day.on .cal-num { color: #fff; font-weight: 700; }
+/* Reserves the dot row's height on every cell so days with entries do not
+   sit a few pixels taller than empty ones. */
+.cal-dots { display: flex; gap: 2px; height: 5px; align-items: center; }
+.cal-dots .dot { width: 5px; height: 5px; border-radius: 50%; }
+.dot.task { background: var(--accent); }
+.dot.event { background: var(--ink); }
+.dot.log { background: var(--muted); }
+.dot.overdue { background: var(--urgent); }
+.cal-day.on .dot.task,
+.cal-day.on .dot.event,
+.cal-day.on .dot.log { background: #fff; }
+.cal-agenda-label { margin-top: 2px; }
 
 /* pending chat-capture label: blinks continuously so the "still working"
    state is visible even between the every-3s word swaps. */

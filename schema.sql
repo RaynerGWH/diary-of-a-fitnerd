@@ -24,14 +24,12 @@ create table if not exists public.profiles (
   created_at    timestamptz not null default now()
 );
 
--- category is freeform text (school | work | ra | gym | diet | expenditure |
--- other) rather than an enum, so new categories never need a migration.
--- status/due_at apply to tasks only; amount/currency to expenditure entries.
 -- ------------------------------------------------------------
--- ENTRIES: the atomic unit. A task, a log, or an event. ("note" and
--- "log" were never meaningfully distinct, so there's just "log".)
+-- ENTRIES: the atomic unit. A task, a log, or an event.
 -- category is freeform text (school | work | ra | gym | diet |
--- expenditure | other) so new categories never need a migration.
+-- expenditure | other) rather than an enum, so adding one never needs a
+-- migration. status/due_at apply to tasks only; amount/currency to
+-- expenditure entries.
 -- ------------------------------------------------------------
 create table if not exists public.entries (
   id           uuid primary key default gen_random_uuid(),
@@ -43,6 +41,14 @@ create table if not exists public.entries (
   status       text check (status in ('open','done','archived')),
   due_at       timestamptz,
   occurred_at  timestamptz not null default now(),
+  -- Calendar fields. ends_at gives an event a duration instead of a single
+  -- instant; all_day marks a date with no meaningful time, which must never be
+  -- put through a clock formatter or it lands on the neighbouring day.
+  ends_at      timestamptz,
+  all_day      boolean not null default false,
+  -- Recurring events are materialized as ordinary rows sharing a series_id,
+  -- so every occurrence stays independently editable, tickable and deletable.
+  series_id    uuid,
   amount       numeric(10,2),
   currency     text,
   source       text not null default 'app' check (source in ('app','telegram')),
@@ -50,11 +56,19 @@ create table if not exists public.entries (
   -- capture_chat below). Surfaced as a badge until fixed or re-logged.
   needs_review boolean not null default false,
   created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now()
+  updated_at   timestamptz not null default now(),
+  -- A task belongs on the calendar by its due date, everything else by when it
+  -- happened. Defining that once here keeps a calendar query to a single
+  -- indexed range scan, and undated tasks fall out as null so they never
+  -- appear on the grid.
+  calendar_at  timestamptz
+    generated always as (case when type = 'task' then due_at else occurred_at end) stored
 );
 create index if not exists entries_user_occurred_idx on public.entries (user_id, occurred_at desc);
 create index if not exists entries_user_category_idx on public.entries (user_id, category);
 create index if not exists entries_open_tasks_idx on public.entries (user_id, due_at) where type = 'task' and status = 'open';
+create index if not exists entries_calendar_idx on public.entries (user_id, calendar_at) where calendar_at is not null;
+create index if not exists entries_series_idx on public.entries (user_id, series_id) where series_id is not null;
 
 -- Separate from category: tags are freeform many-to-many, for cross-cutting
 -- labels that don't fit a single category.
@@ -74,17 +88,10 @@ create table if not exists public.entry_tags (
   primary key (entry_id, tag_id)
 );
 
--- No in-Postgres graph-edge table. The real knowledge graph will live in
--- Neo4j (populated from entries + tags later), so this stays a plain
--- relational store instead of syncing two sources of truth.
-
--- Not wired up yet: exists so the future Telegram bot webhook can be built
--- without another migration.
 -- ------------------------------------------------------------
--- Note: no in-Postgres graph-edge table. The real knowledge graph
--- will live in Neo4j (populated from `entries` + `tags` later, likely
--- via an extraction pass) rather than manually-drawn links here.
--- Keeps one source of truth instead of syncing two.
+-- No in-Postgres graph-edge table. The real knowledge graph lives in Neo4j,
+-- populated from `entries` + `tags` (likely via an extraction pass) rather
+-- than manually-drawn links here. One source of truth instead of two.
 -- ------------------------------------------------------------
 
 -- ------------------------------------------------------------
@@ -120,6 +127,83 @@ create table if not exists public.capture_chat (
 create index if not exists capture_chat_user_created_idx
   on public.capture_chat (user_id, created_at desc);
 
+-- ------------------------------------------------------------
+-- JOB LISTINGS: written by the custom MCP connector (see src/app/api/mcp),
+-- not by the app's own capture flow. Kept out of `entries` because the daily
+-- re-scrape needs a real dedupe key (the posting URL) and because a listing
+-- carries company/location/deadline that have nowhere honest to live on an
+-- entry. Promoting one into a task writes an `entries` row and records it
+-- back here as entry_id.
+-- ------------------------------------------------------------
+create table if not exists public.job_listings (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references public.profiles(id) on delete cascade,
+  title       text not null,
+  company     text,
+  url         text not null,
+  location    text,
+  summary     text,
+  deadline    date,
+  status      text not null default 'new'
+                check (status in ('new','saved','applied','dismissed')),
+  source      text not null default 'mcp',
+  entry_id    uuid references public.entries(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  -- The upsert target: the scrape re-surfaces the same posting every morning
+  -- until it leaves the inbox, so re-submitting a URL must refresh the row
+  -- rather than pile up duplicates.
+  unique (user_id, url)
+);
+create index if not exists job_listings_user_created_idx
+  on public.job_listings (user_id, created_at desc);
+create index if not exists job_listings_user_status_idx
+  on public.job_listings (user_id, status);
+
+-- ------------------------------------------------------------
+-- OAUTH: this app is both the resource server (the MCP endpoint) and the
+-- authorization server protecting it, so claude.ai can connect as a custom
+-- connector. Claude is a single pre-registered client, so there is no
+-- client-registration table: its id and secret live in env vars.
+-- ------------------------------------------------------------
+
+-- Single-use, short-lived. consumed_at is set rather than the row deleted so a
+-- replayed code is detectably a replay instead of merely unknown.
+create table if not exists public.oauth_auth_codes (
+  code                  text primary key,
+  user_id               uuid not null references public.profiles(id) on delete cascade,
+  client_id             text not null,
+  redirect_uri          text not null,
+  scope                 text not null,
+  code_challenge        text not null,
+  code_challenge_method text not null default 'S256' check (code_challenge_method = 'S256'),
+  resource              text,
+  expires_at            timestamptz not null,
+  consumed_at           timestamptz,
+  created_at            timestamptz not null default now()
+);
+create index if not exists oauth_auth_codes_expiry_idx on public.oauth_auth_codes (expires_at);
+
+-- Opaque rather than JWT: one indexed lookup per MCP request buys instant
+-- revocation, which matters more here than statelessness. Only the SHA-256 of
+-- each token is stored, so a dump of this table hands over no working
+-- credentials.
+create table if not exists public.oauth_tokens (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            uuid not null references public.profiles(id) on delete cascade,
+  client_id          text not null,
+  scope              text not null,
+  access_token_hash  text not null unique,
+  refresh_token_hash text unique,
+  audience           text,
+  expires_at         timestamptz not null,
+  revoked_at         timestamptz,
+  last_used_at       timestamptz,
+  created_at         timestamptz not null default now()
+);
+create index if not exists oauth_tokens_user_idx on public.oauth_tokens (user_id);
+create index if not exists oauth_tokens_refresh_idx on public.oauth_tokens (refresh_token_hash);
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -141,12 +225,10 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Everything is private to its owner: no shared-read policies, unlike the
--- old Fitnerds! schema, since this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
 -- ROW LEVEL SECURITY
--- Everything is private to its owner. No shared-read policies:
--- unlike Fitnerds, this is a personal journal, not a shared app.
+-- Everything is private to its owner. No shared-read policies anywhere:
+-- this is a personal journal, not a shared app.
 -- ------------------------------------------------------------
 alter table public.allowed_emails enable row level security;
 alter table public.profiles      enable row level security;
@@ -155,6 +237,9 @@ alter table public.tags          enable row level security;
 alter table public.entry_tags    enable row level security;
 alter table public.telegram_inbox enable row level security;
 alter table public.capture_chat  enable row level security;
+alter table public.job_listings     enable row level security;
+alter table public.oauth_auth_codes enable row level security;
+alter table public.oauth_tokens     enable row level security;
 
 create policy "read own profile"   on public.profiles for select to authenticated using (id = auth.uid());
 create policy "update own profile" on public.profiles for update to authenticated
@@ -178,10 +263,8 @@ create policy "write own entry_tags" on public.entry_tags for all to authenticat
   using (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()))
   with check (exists (select 1 from public.entries e where e.id = entry_id and e.user_id = auth.uid()));
 
--- Deliberately no "authenticated" policy on telegram_inbox: only the
--- service_role key (bot webhook, server-side only) may touch this table.
--- telegram_inbox: no client policies. Only the service_role key (bot webhook,
--- server-side only) touches this table. Deliberately no "authenticated" policy.
+-- telegram_inbox has no client policies, deliberately: only the service_role
+-- key (bot webhook, server-side only) may touch this table.
 
 -- allowed_emails likewise has no client policies. Without RLS it would be
 -- world-readable through PostgREST (the anon key is public), handing out the
@@ -193,7 +276,20 @@ create policy "read own capture_chat" on public.capture_chat for select to authe
 create policy "write own capture_chat" on public.capture_chat for all to authenticated
   using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+create policy "read own job_listings" on public.job_listings for select to authenticated
+  using (user_id = auth.uid());
+create policy "write own job_listings" on public.job_listings for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- The OAuth tables deliberately have no policy for `authenticated`. Codes and
+-- token hashes are only ever touched by route handlers holding the
+-- service_role key; the anon key is public, so a readable token table would be
+-- a readable credential table.
+
 -- entries streams over realtime so a future Telegram-bot insert shows up on
--- the dashboard live, without a manual refresh.
+-- the dashboard live, without a manual refresh. job_listings does the same so
+-- the connector's morning run lands on an open /jobs tab.
 alter table public.entries replica identity full;
 alter publication supabase_realtime add table public.entries;
+alter table public.job_listings replica identity full;
+alter publication supabase_realtime add table public.job_listings;

@@ -5,9 +5,25 @@ import { isAllowed } from "@/lib/auth/allow-list";
 const PUBLIC_PATHS = ["/login", "/auth/callback", "/denied"];
 const WELCOME_PATH = "/welcome";
 
+// Machine entry points: the MCP endpoint, the OAuth token endpoint, and the
+// discovery documents. These are called by Anthropic's servers with a bearer
+// token and no cookies, so the session redirects below would answer a JSON-RPC
+// request with an HTML login page and a 307 instead of the 401 the client needs
+// to start the OAuth flow. They authenticate themselves; see
+// src/lib/mcp/oauth.ts. /oauth/authorize is deliberately NOT here: that one is
+// a real page a human signs into.
+const MACHINE_PATHS = ["/api/mcp", "/oauth/token", "/.well-known/"];
+
 type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function updateSession(request: NextRequest) {
+  // Checked before the Supabase client is even built: these paths have no
+  // session to refresh, and every request to them would otherwise pay a
+  // round-trip to Supabase Auth for nothing.
+  if (MACHINE_PATHS.some((p) => request.nextUrl.pathname.startsWith(p))) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -33,11 +49,18 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
+  // The query string is part of where the user was going, not decoration:
+  // /oauth/authorize carries the client id, PKCE challenge and state, and
+  // sending someone to a bare /oauth/authorize after login loses the whole
+  // authorization request.
+  const returnTo = pathname + request.nextUrl.search;
+
   if (!user) {
     if (isPublic) return response;
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    url.searchParams.set("next", pathname);
+    url.search = "";
+    url.searchParams.set("next", returnTo);
     return NextResponse.redirect(url);
   }
 
@@ -65,7 +88,8 @@ export async function updateSession(request: NextRequest) {
   if (pathname !== WELCOME_PATH && !isPublic && !request.cookies.get("welcomed")) {
     const url = request.nextUrl.clone();
     url.pathname = WELCOME_PATH;
-    url.searchParams.set("next", pathname);
+    url.search = "";
+    url.searchParams.set("next", returnTo);
     return NextResponse.redirect(url);
   }
 

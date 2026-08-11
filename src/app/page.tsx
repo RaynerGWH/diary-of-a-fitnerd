@@ -6,19 +6,24 @@ import { BottomNav } from "@/components/BottomNav";
 import { HomeEntries } from "@/components/HomeEntries";
 import { EntriesLive } from "@/components/EntriesLive";
 import { getCurrentProfile } from "@/lib/auth/current-user";
-import { getOutstandingTasks, getTodayLogs } from "@/lib/db/queries";
+import { HomeClock } from "@/components/HomeClock";
+import { HomeSchedule } from "@/components/HomeSchedule";
+import { getOutstandingTasks, getTodayLogs, getTodaySchedule } from "@/lib/db/queries";
 
 export default async function HomePage() {
   const profile = await getCurrentProfile();
   if (!profile) redirect("/login");
 
-  const [tasks, logs] = await Promise.all([
+  const [tasks, logs, schedule] = await Promise.all([
     getOutstandingTasks(profile.id),
     getTodayLogs(profile.id),
+    getTodaySchedule(profile.id),
   ]);
 
   return (
     <PhoneFrame nav={<BottomNav active="home" />}>
+      <HomeClock initialIso={new Date().toISOString()} />
+
       <HomeGreeting />
 
       <EntriesLive userId={profile.id} />
@@ -26,6 +31,8 @@ export default async function HomePage() {
       <Link href="/capture" className="capture-hero d1">
         <div className="big">What&apos;s new?</div>
       </Link>
+
+      <HomeSchedule entries={schedule} />
 
       <HomeEntries tasks={tasks} logs={logs} />
     </PhoneFrame>
