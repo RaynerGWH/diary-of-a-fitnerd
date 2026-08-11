@@ -22,6 +22,14 @@ export const ListIcon = (p: IconProps) =>
     children: <path className="doodle" d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" />,
   });
 
+export const BriefcaseIcon = (p: IconProps) =>
+  base({
+    ...p,
+    children: (
+      <path className="doodle" d="M4 8h16v11H4zM9 8V6a1 1 0 011-1h4a1 1 0 011 1v2M4 13h16" />
+    ),
+  });
+
 export const PulseIcon = (p: IconProps) =>
   base({ ...p, children: <path className="doodle" d="M4 12h3l2-6 4 13 3-8 2 3h2" /> });
 
