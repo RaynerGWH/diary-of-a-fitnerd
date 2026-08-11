@@ -31,7 +31,7 @@ What replaced it was a single idea:
 
 ## My app in a nutshell :)
 
-![A flow diagram of the app: a message typed into /capture is classified by intent, then either parsed into one or more new entries and stored, or matched against existing entries for an edit the user confirms.](readme-diagram.png)
+![A flow diagram over screenshots of the app. A message typed into /capture is classified by intent. The "new task" branch loops over every entry parsed out of the message and stores each one, returning a chat reply and an updated entries list. The "edit existing task" branch runs a deterministic keyword search first, then has the model pick which entry matched, and ends at a prefilled form the user confirms.](readme-diagram.png)
 
 ---
 
@@ -107,6 +107,45 @@ the websocket to Supabase directly, which is what makes it work on Vercel's
 serverless runtime, and it means a future Telegram bot inserting a row from
 outside the app will show up on the dashboard live with no extra work.
 
+### Claude writes into it, over MCP
+
+I have a scheduled task in the Claude app that runs every morning, reads my
+inbox, and pulls out internship postings worth looking at. The results used to
+live in a chat log I forgot to open. Now they land in the app.
+
+To do that, this repo is also a remote **MCP server**: `/api/mcp` exposes one
+tool, `submit_job_listings`, and I added it to claude.ai as a custom connector.
+The morning run calls the tool, the rows land in `job_listings`, and `/jobs`
+shows them, live, through the same realtime mechanism as everything else.
+
+The interesting part is the authentication. A connector endpoint is a URL on
+the public internet that writes to my database, so "anyone who finds it can
+post nonsense into my app" was not an acceptable design. The MCP spec's answer
+is OAuth, and since I had no separate identity provider to point at, the app
+became its own **OAuth 2.1 authorization server**:
+
+- `/api/mcp` is the resource server. Unauthenticated calls get a `401` whose
+  `WWW-Authenticate` header points at the discovery document. That header is
+  the whole handshake: it is how a client that knows nothing about me finds out
+  where to go and sign in.
+- `/.well-known/oauth-protected-resource` and
+  `/.well-known/oauth-authorization-server` are the discovery documents.
+- `/oauth/authorize` and `/oauth/token` are the authorization server. Authorize
+  is a real page: I sign in as myself and approve a consent screen naming the
+  single scope it grants.
+
+Claude is a single pre-registered client, so I skipped dynamic client
+registration entirely: the client id and secret are env vars I pasted into the
+connector settings once. Everything else is the boring correct stuff, and it is
+boring on purpose, because this is the part where being clever gets you owned:
+PKCE with S256 only, `redirect_uri` checked against a fixed allow-list, tokens
+stored only as hashes, refresh tokens that rotate on every use, and an audience
+check so a token minted for some other MCP server cannot be replayed at mine.
+
+The tool takes the user id from the verified token and never from its own
+arguments. That route runs on a key that bypasses row-level security, so that
+one line is the only thing scoping the write. It has a test.
+
 ---
 
 ## Stack
@@ -158,6 +197,35 @@ npm test           # vitest
 npm run typecheck  # tsc --noEmit
 npm run build      # production build
 ```
+
+### Optional: the Claude connector
+
+Only needed if you want the jobs board fed by Claude. It requires a deployed,
+publicly reachable HTTPS URL, because Anthropic's servers have to call it.
+
+Add to `.env.local` and to your host's environment:
+
+- `APP_URL` — the deployment origin, no trailing slash. Every OAuth document
+  has to agree on it exactly.
+- `SUPABASE_SERVICE_ROLE_KEY` — from Supabase project settings. This one
+  bypasses row-level security, so keep it server-side and never give it a
+  `NEXT_PUBLIC_` prefix.
+- `MCP_OAUTH_CLIENT_ID` — any stable string.
+- `MCP_OAUTH_CLIENT_SECRET` — `openssl rand -hex 32`.
+
+Then in claude.ai, Settings -> Connectors -> Add custom connector: the URL is
+`https://<your-app>/api/mcp`, and the client id and secret go under Advanced
+settings. Click Connect, sign in, approve.
+
+Sanity check before you try it, which saves a lot of guessing:
+
+```bash
+curl https://<your-app>/.well-known/oauth-protected-resource   # JSON
+curl -i -X POST https://<your-app>/api/mcp                     # 401 + WWW-Authenticate
+```
+
+If either returns HTML, something is intercepting the route before it reaches
+the handler.
 
 Deploying to Vercel: import the repo and add the same four environment
 variables in project settings. Set Supabase Auth -> Site URL to your

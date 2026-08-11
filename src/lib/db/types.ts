@@ -54,6 +54,29 @@ export type Tag = {
   name: string;
 };
 
+export const JOB_STATUSES = ["new", "saved", "applied", "dismissed"] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+
+// Written by the MCP connector, not by the app's own capture flow. Kept
+// separate from Entry because a posting has fields an entry has nowhere to put
+// and because the daily re-scrape needs `url` as a dedupe key.
+export type JobListing = {
+  id: UUID;
+  user_id: UUID;
+  title: string;
+  company: string | null;
+  url: string;
+  location: string | null;
+  summary: string | null;
+  deadline: string | null;
+  status: JobStatus;
+  source: string;
+  // Set when a listing has been promoted into a real task on the board.
+  entry_id: UUID | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type ChatRole = "user" | "assistant";
 
 export type ChatMessage = {
