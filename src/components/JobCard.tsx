@@ -161,7 +161,7 @@ export function JobCard({
           onClick={() => run(() => deleteJobListing(listing.id))}
           disabled={busy}
           aria-label="delete listing"
-          className="text-[color:var(--urgent)] text-[13px]"
+          className="shrink-0 text-[color:var(--urgent)] text-[13px]"
         >
           ✕
         </button>

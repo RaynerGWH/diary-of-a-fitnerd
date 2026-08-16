@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { Fragment, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { animate, stagger } from "animejs";
 import { CactusIcon } from "./Doodle";
 import { PhoneFrame } from "./PhoneFrame";
 
 const GREETING = "Welcome back, Rayner.";
-const NBSP = " ";
+const WORDS = GREETING.split(" ");
 
 export function WelcomeScreen({ next }: { next: string }) {
   const router = useRouter();
@@ -54,11 +54,24 @@ export function WelcomeScreen({ next }: { next: string }) {
   return (
     <PhoneFrame ref={cardRef} className="phone-welcome">
       <CactusIcon size={40} />
+      {/* Grouped by word, not one flat run of characters. Each character needs
+          its own box to be staggered, and a run of loose character boxes gives
+          the browser a break opportunity between every pair of them, so a long
+          name wraps down the middle of itself. Keeping a word's characters
+          inside a nowrap span confines breaks to the real spaces between
+          words, which are ordinary text nodes here and so still render. */}
       <h1 className="ws-greeting" ref={textRef}>
-        {GREETING.split("").map((char, i) => (
-          <span className="ws-char" key={i}>
-            {char === " " ? NBSP : char}
-          </span>
+        {WORDS.map((word, wordIndex) => (
+          <Fragment key={wordIndex}>
+            <span className="ws-word">
+              {[...word].map((char, charIndex) => (
+                <span className="ws-char" key={charIndex}>
+                  {char}
+                </span>
+              ))}
+            </span>
+            {wordIndex < WORDS.length - 1 ? " " : null}
+          </Fragment>
         ))}
         <span className="ws-cursor" aria-hidden="true" />
       </h1>
