@@ -111,8 +111,9 @@ export function CalendarMonth({
 
       <div className="label cal-agenda-label">{formatDayHeading(selected)}</div>
 
-      {/* The grid above is fixed; only this list scrolls, so picking a day
-          never scrolls the month you picked it from out of view. */}
+      {/* Takes its natural height. The whole view scrolls as one column, so on
+          a phone the day's entries are reachable by scrolling on past the
+          grid rather than being trapped in a pane of their own. */}
       <div className="cal-agenda">
         {dayEntries.length === 0 ? (
           <div className="card alt d2">

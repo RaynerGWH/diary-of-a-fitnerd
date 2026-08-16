@@ -7,7 +7,11 @@ import { CactusIcon } from "./Doodle";
 import { PhoneFrame } from "./PhoneFrame";
 
 const GREETING = "Welcome back, Rayner.";
-const NBSP = " ";
+// Written as an escape, not a literal: each character below is rendered in its
+// own inline-block span for the stagger, and a span holding an ordinary space
+// collapses to zero width, running the words together. A literal U+00A0 here
+// works too, until an editor or formatter silently normalizes it back.
+const NBSP = "\u00A0";
 
 export function WelcomeScreen({ next }: { next: string }) {
   const router = useRouter();

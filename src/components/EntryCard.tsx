@@ -270,7 +270,7 @@ export function EntryCard({
             type="button"
             onClick={onDelete}
             aria-label="delete entry"
-            className="text-[color:var(--urgent)] text-[13px]"
+            className="shrink-0 text-[color:var(--urgent)] text-[13px]"
           >
             ✕
           </button>
