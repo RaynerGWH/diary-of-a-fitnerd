@@ -721,6 +721,9 @@ textarea.field::-webkit-scrollbar { display: none; }
   text-align: center;
   max-width: 90vw;
 }
+/* Holds a word's characters together so a line can only break at a real space
+   between words, never between two letters of the same word. */
+.ws-word { white-space: nowrap; }
 .ws-char { display: inline-block; opacity: 0; }
 .ws-cursor {
   display: inline-block;
