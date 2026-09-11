@@ -1,3 +1,8 @@
+// Every read here filters `deleted_at is null`. Agent deletes are soft:
+// resolving which entry the user meant is fallible, so those deletes stay
+// recoverable rather than destroying a row the model picked wrong. A read
+// that forgets the filter shows ghost rows in exactly one view, which is a
+// miserable bug to notice.
 import { createClient } from "@/lib/supabase/server";
 import { sgtDayBounds, sgtMonthBounds } from "@/lib/time";
 import type { ChatMessage, Entry, EntryType, JobListing, JobStatus, UUID } from "./types";
@@ -11,6 +16,7 @@ export async function getOutstandingTasks(userId: UUID): Promise<Entry[]> {
     .from("entries")
     .select("*")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .eq("type", "task")
     .eq("status", "open")
     .order("due_at", { ascending: true, nullsFirst: false });
@@ -27,6 +33,7 @@ export async function getTodayLogs(userId: UUID): Promise<Entry[]> {
     .from("entries")
     .select("*")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .in("type", ["log", "event"])
     .gte("occurred_at", start)
     .lte("occurred_at", end)
@@ -47,7 +54,7 @@ export async function getEntries(
   opts: { category?: string; type?: EntryType; search?: string; limit?: number } = {},
 ): Promise<Entry[]> {
   const supabase = await createClient();
-  let q = supabase.from("entries").select("*").eq("user_id", userId);
+  let q = supabase.from("entries").select("*").eq("user_id", userId).is("deleted_at", null);
   if (opts.category) q = q.eq("category", opts.category);
   if (opts.type) q = q.eq("type", opts.type);
   if (opts.search?.trim()) {
@@ -71,6 +78,7 @@ export async function getTodaySchedule(userId: UUID): Promise<Entry[]> {
     .from("entries")
     .select("*")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .in("type", ["event", "task"])
     .gte("calendar_at", start)
     .lte("calendar_at", end)
@@ -96,6 +104,7 @@ export async function getCalendarMonth(
     .from("entries")
     .select("*")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .gte("calendar_at", start)
     .lt("calendar_at", end);
   if (opts.category) q = q.eq("category", opts.category);
@@ -120,6 +129,7 @@ export async function searchEntriesForEdit(userId: UUID, query: string, limit = 
     .from("entries")
     .select("*")
     .eq("user_id", userId)
+    .is("deleted_at", null)
     .or(`title.ilike.%${term}%,body.ilike.%${term}%`)
     .order("occurred_at", { ascending: false })
     .limit(limit);

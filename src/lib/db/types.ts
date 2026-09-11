@@ -46,6 +46,10 @@ export type Entry = {
   // Generated in Postgres: due_at for tasks, occurred_at otherwise. Null for
   // undated tasks, which is what keeps them off the calendar.
   calendar_at: string | null;
+  // Soft delete, set by the agent rather than the UI. The agent has to resolve
+  // which entry you meant before it can delete one, and that resolution is
+  // fallible, so its deletes stay recoverable. Every read filters this to null.
+  deleted_at: string | null;
 };
 
 export type Tag = {
@@ -85,5 +89,8 @@ export type ChatMessage = {
   role: ChatRole;
   content: string;
   entry_id: UUID | null;
+  // The conversation this message belongs to, and the LangGraph run that
+  // produced it. Null on rows written before threading existed.
+  thread_id: UUID | null;
   created_at: string;
 };
