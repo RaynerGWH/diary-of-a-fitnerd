@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Every .env variant, including backups. .env.bak holding a service_role key
+# and not matching a narrower pattern is exactly how a key reaches a commit.
+.env*
+!.env.example
+
+# Tests stay local, per project preference.
+tests/
+scripts/
