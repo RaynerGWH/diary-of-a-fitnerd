@@ -24,11 +24,6 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
-    # Supabase's transaction pooler, for the LangGraph checkpointer. Must carry
-    # prepare_threshold=None downstream: pgbouncer in transaction mode cannot
-    # do prepared statements, and psycopg uses them by default.
-    database_url: str | None = None
-
     # Provider-agnostic on purpose: OpenAI, OpenRouter, and most gateways all
     # speak the same API, so swapping is two env vars rather than a code change.
     # Leave llm_base_url unset for OpenAI direct.
