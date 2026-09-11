@@ -2,12 +2,12 @@
 
 Two things worth understanding before editing anything here.
 
-**The user id is never a tool argument.** Every tool reads it from
-`config["configurable"]["user_id"]`, which the graph sets from the verified
-JWT. `RunnableConfig` is stripped out of the schema the model sees, so the
-model cannot set it, cannot see it, and cannot hallucinate one. The client
-holds the service_role key and bypasses RLS, so this is the entire
-authorization model.
+**The user id is never a tool argument.** Every tool reads it via
+`config["configurable"]["user_id"]`, which the graph populates from the verified JWT.
+`RunnableConfig` is stripped out of the schema the model sees, so the model
+cannot set it, cannot see it, and cannot hallucinate one. The client holds
+the service_role key and bypasses RLS, so this is the entire authorization
+model.
 
 **A tool's return value is prompt design.** There is no output schema: whatever
 comes back is stringified and read by the model as text. So these return
@@ -19,6 +19,7 @@ from typing import Annotated, Any, Literal
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 
 from rayner_agent.db import entries as db_entries
@@ -28,17 +29,30 @@ from rayner_agent.domain.schemas import EntryDraft, EntryUpdates
 from rayner_agent.domain.timezone import now_sgt
 
 MAX_CANDIDATES = 8
-MAX_SPECS = 4
-
 
 def _user_id(config: RunnableConfig) -> str:
     user_id = (config.get("configurable") or {}).get("user_id")
     if not user_id:
-        # Reaching here means the graph was invoked without an authenticated
-        # caller. Failing loudly beats running a query with a null filter,
-        # which the service_role key would happily answer across all rows.
+        # No authenticated caller. Failing loudly beats running a query whose
+        # only scoping filter is None, which the service_role key would
+        # happily answer across every row in the table.
         raise RuntimeError("no user_id in config; refusing to touch the database")
     return str(user_id)
+
+MAX_SPECS = 4
+
+
+def _approved(decision: object) -> bool:
+    """Read the human's answer out of whatever the resume passed back.
+
+    Deliberately strict: anything that is not a clear yes counts as no, so a
+    malformed resume leaves the entry alone rather than writing to it.
+    """
+    if isinstance(decision, bool):
+        return decision
+    if isinstance(decision, dict):
+        return bool(decision.get("approved"))
+    return str(decision).strip().lower() in {"yes", "y", "approve", "approved", "true"}
 
 
 class SearchSpec(BaseModel):
@@ -180,10 +194,23 @@ def edit_entry(entry_id: str, updates: EntryUpdates, config: RunnableConfig) -> 
     if not patch:
         return "No changes were specified, so nothing was updated."
 
+    # Pause and ask before touching anything. Resolving *which* entry was
+    # meant is the fallible step in this whole design, so the write never
+    # happens on the model's say-so alone.
+    #
+    # Everything above this line runs again when the turn resumes, because a
+    # resumed node re-executes from the top. Hence the write below it, not
+    # above: otherwise confirming would apply the edit twice.
+    decision = interrupt(
+        {"action": "edit", "entry_id": entry_id, "changes": patch}
+    )
+    if not _approved(decision):
+        return "ok, left it as it was"
+
     row = db_entries.update_entry(user_id, entry_id, patch)
     if row is None:
         return f"No entry with id {entry_id} belongs to this user; nothing was updated."
-    return f"Updated {', '.join(patch)} on \"{row['title']}\"."
+    return f"updated {', '.join(patch)} on \"{row['title']}\""
 
 
 @tool
@@ -200,10 +227,21 @@ def delete_entry(
     than guessing when it is ambiguous.
     """
     user_id = _user_id(config)
+
+    # Same gate as edit_entry, and for the same reason. The count goes in the
+    # payload so the confirmation can say "this removes 12 occurrences"
+    # rather than making the user guess what a series contains.
+    affected = db_entries.count_series(user_id, target) if scope == "series" else 1
+    decision = interrupt(
+        {"action": "delete", "target": target, "scope": scope, "affected": affected}
+    )
+    if not _approved(decision):
+        return "ok, left it alone"
+
     count = db_entries.soft_delete(user_id, target, scope)
     if count == 0:
         return f"Nothing matched {target} for this user; nothing was deleted."
-    return f"Deleted {count} entr{'y' if count == 1 else 'ies'}."
+    return f"deleted {count} entr{'y' if count == 1 else 'ies'}"
 
 
 @tool

@@ -18,8 +18,16 @@ first thing and silently drop the second.
 
 from langchain_core.messages import AIMessage
 
+# Tools whose return value is phrased for the user rather than the model,
+# so it can be shown as the reply without paying for another model call.
+SELF_DESCRIBING = frozenset({"add_entries", "edit_entry", "delete_entry"})
+
 ALWAYS_TERMINAL = frozenset({"reply"})
-TERMINAL_IF_ALONE = frozenset({"add_entries"})
+# Every self-describing tool is also terminal when it is the sole call.
+# These two must be: letting the model speak after one of them lets it
+# paraphrase "left it as it was" into "updated it", which is a lie about
+# what happened to the user's data.
+TERMINAL_IF_ALONE = SELF_DESCRIBING
 
 
 def is_terminal(message: AIMessage) -> bool:
@@ -44,17 +52,19 @@ def reply_text(message: AIMessage, tool_results: dict[str, str]) -> str:
     normalised once rather than at every call site:
 
       - `reply` was called: its argument.
-      - `add_entries` was called: the confirmation the tool built from the
-        rows that actually landed, which is why it cannot claim to have saved
-        something it did not.
+      - a self-describing tool ran: its return value, which was built from
+        what actually happened in the database, so it cannot claim to have
+        saved or changed something it did not.
       - plain text, no tool call: the content itself.
     """
     for call in message.tool_calls or []:
         if call["name"] == "reply":
             return str(call["args"].get("text", "")).strip()
 
+    # Tools that speak for themselves. Their return value is written for the
+    # user, not for the model, so it is the reply verbatim.
     for call in message.tool_calls or []:
-        if call["name"] == "add_entries" and call["id"] in tool_results:
+        if call["name"] in SELF_DESCRIBING and call["id"] in tool_results:
             return tool_results[call["id"]]
 
     if isinstance(message.content, str) and message.content.strip():
