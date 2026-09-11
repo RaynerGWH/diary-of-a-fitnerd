@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { shuffle } from "animejs";
-import { sendCaptureMessage, type PendingEdit } from "@/app/capture/chat-actions";
-import { updateEntry, createEntryFromFields } from "@/app/entries/actions";
+import { confirmPendingAction, sendCaptureMessage } from "@/app/capture/chat-actions";
+import type { PendingConfirmation } from "@/lib/agent/client";
 import { CactusIcon } from "./Doodle";
-import { EntryEditForm, formFromEntryLike, fieldsFromForm, type EditForm } from "./EntryEditForm";
 import type { ChatMessage } from "@/lib/db/types";
 
 type Bubble = {
@@ -15,7 +14,8 @@ type Bubble = {
   content: string;
   status: "sent" | "pending" | "failed";
   flagged?: boolean;
-  pendingEdit?: PendingEdit;
+  pendingEdit?: PendingConfirmation;
+  threadId?: string;
   pendingResolution?: "applied" | "cancelled";
 };
 
@@ -62,47 +62,30 @@ function PendingLabel() {
 // confidently-wrong match.
 function PendingEditCard({
   pending,
+  threadId,
   onResolved,
 }: {
-  pending: PendingEdit;
+  pending: PendingConfirmation;
+  threadId: string;
   onResolved: (result: "applied" | "cancelled") => void;
 }) {
   const router = useRouter();
-  const [form, setForm] = useState<EditForm>(() =>
-    formFromEntryLike({
-      type: pending.fields.type,
-      category: pending.fields.category,
-      title: pending.fields.title,
-      body: pending.fields.body,
-      due_at: pending.fields.dueAt,
-      occurred_at: pending.fields.occurredAt ?? null,
-      ends_at: pending.fields.endsAt ?? null,
-      all_day: pending.fields.allDay ?? false,
-      amount: pending.fields.amount,
-      currency: pending.fields.currency,
-    }),
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onConfirm() {
+  const isDelete = pending.action === "delete";
+
+  async function resolve(approved: boolean) {
     setSaving(true);
     setError(null);
     try {
-      const fields = fieldsFromForm(form);
-      if (pending.kind === "edit") {
-        await updateEntry(pending.entryId, {
-          ...fields,
-          title: fields.title || pending.currentTitle,
-          status: pending.fields.status,
-        });
-      } else {
-        await createEntryFromFields({ ...fields, title: fields.title || "untitled" });
-      }
+      // The agent is suspended mid-run holding the change. Nothing has been
+      // written yet, and declining leaves the entry untouched.
+      await confirmPendingAction(threadId, approved);
       router.refresh();
-      onResolved("applied");
+      onResolved(approved ? "applied" : "cancelled");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "couldn't save that, try again");
+      setError(err instanceof Error ? err.message : "couldn't do that, try again");
     } finally {
       setSaving(false);
     }
@@ -111,23 +94,35 @@ function PendingEditCard({
   return (
     <div className="pending-edit-card">
       <div className="pending-edit-label">
-        {pending.kind === "edit" ? `editing: ${pending.currentTitle}` : "log as new entry?"}
+        {isDelete
+          ? pending.scope === "series" && pending.affected
+            ? `delete all ${pending.affected} occurrences?`
+            : "delete this entry?"
+          : "make this change?"}
       </div>
-      <EntryEditForm form={form} onChange={setForm} />
+      {!isDelete && pending.changes && (
+        <ul className="text-[13px] leading-relaxed">
+          {Object.entries(pending.changes).map(([field, value]) => (
+            <li key={field}>
+              <span className="opacity-60">{field}</span> &rarr; {String(value)}
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <div className="text-[13px] text-[color:var(--urgent)]">{error}</div>}
       <div className="flex gap-2">
         <button
           type="button"
           className="sticker-btn primary"
-          onClick={onConfirm}
-          disabled={saving || !form.title.trim()}
+          onClick={() => resolve(true)}
+          disabled={saving}
         >
-          {saving ? "saving..." : pending.kind === "edit" ? "confirm edit" : "log as new"}
+          {saving ? "saving..." : isDelete ? "delete" : "confirm"}
         </button>
         <button
           type="button"
           className="sticker-btn"
-          onClick={() => onResolved("cancelled")}
+          onClick={() => resolve(false)}
           disabled={saving}
         >
           cancel
@@ -151,10 +146,10 @@ export function ChatCapture({
   const [pending, startTransition] = useTransition();
   const threadRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // Set when "restart chat" is pressed: excludes everything before this
-  // moment from the parser's context, on top of the server's own 15-minute
-  // staleness cutoff.
-  const restartedAfterRef = useRef<string | null>(null);
+  // Set by "restart chat" and cleared once used. The thread id is the
+  // conversation boundary now, so restarting is simply refusing to reuse the
+  // current one; the server still applies its own 15-minute staleness cutoff.
+  const restartRef = useRef(false);
 
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: "smooth" });
@@ -171,7 +166,7 @@ export function ChatCapture({
   }, [input]);
 
   function handleRestart() {
-    restartedAfterRef.current = new Date().toISOString();
+    restartRef.current = true;
     setBubbles([]);
   }
 
@@ -198,8 +193,9 @@ export function ChatCapture({
       try {
         const result = await sendCaptureMessage(
           text,
-          restartedAfterRef.current ? { after: restartedAfterRef.current } : undefined,
+          restartRef.current ? { restart: true } : undefined,
         );
+        restartRef.current = false;
         setBubbles((prev) =>
           prev.map((b) =>
             b.id === pendingId
@@ -208,8 +204,8 @@ export function ChatCapture({
                   role: "assistant" as const,
                   content: result.assistantMessage.content,
                   status: "sent" as const,
-                  flagged: result.status === "applied" ? result.flagged : false,
-                  pendingEdit: result.status === "pending" ? result.pending : undefined,
+                  pendingEdit: result.pending ?? undefined,
+                  threadId: result.threadId,
                 }
               : b,
           ),
@@ -259,7 +255,11 @@ export function ChatCapture({
             {b.status === "pending" ? <PendingLabel /> : b.content}
             {b.flagged && <span className="flag">not sure about this one, reply to fix it up</span>}
             {b.pendingEdit && !b.pendingResolution && (
-              <PendingEditCard pending={b.pendingEdit} onResolved={(r) => resolvePendingEdit(b.id, r)} />
+              <PendingEditCard
+                pending={b.pendingEdit}
+                threadId={b.threadId ?? ""}
+                onResolved={(r) => resolvePendingEdit(b.id, r)}
+              />
             )}
             {b.pendingResolution === "cancelled" && <span className="pending-cancelled">cancelled</span>}
           </div>

@@ -1,25 +1,27 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { requireAllowedUser } from "@/lib/auth/require-user";
-import { parseMessage, resolveEdit, type ChatTurn, type EditCandidate } from "@/lib/ai/parse-entry";
-import { searchEntriesForEdit, CHAT_SESSION_WINDOW_MS } from "@/lib/db/queries";
-import { expandWeekly } from "@/lib/calendar";
-import type { EntryEditFields } from "@/app/entries/actions";
-import type { ChatMessage, Entry, EntryType } from "@/lib/db/types";
+import {
+  newThreadId,
+  resumeAgent,
+  sendToAgent,
+  type PendingConfirmation,
+} from "@/lib/agent/client";
+import { CHAT_SESSION_WINDOW_MS } from "@/lib/db/queries";
+import type { ChatMessage } from "@/lib/db/types";
 
-// How many recent chat rows to send to the parser as context. Enough for a
-// couple of exchanges, without dragging the whole visible history into
-// every request's token cost.
-const CONTEXT_ROWS = 6;
-
-const EDIT_CANDIDATE_LIMIT = 5;
+// Everything that used to live here (intent parsing, candidate search, entry
+// insertion, weekly expansion) now runs in the Python agent. What is left is
+// the part that genuinely belongs to the app: proving who is signed in,
+// deciding which conversation this message belongs to, and recording the
+// transcript.
 
 // Nothing typed by hand into a capture box comes close to this. It exists to
-// bound what a single request can cost: `message` is forwarded to a paid LLM
-// call, so an unbounded string is an unbounded bill.
+// bound what a single request can cost: `message` is forwarded to a paid model
+// call, so an unbounded string is an unbounded bill. The agent enforces the
+// same limit independently.
 const MAX_MESSAGE_LENGTH = 2000;
 
 // created_at defaults to now(), which is the TRANSACTION timestamp: both rows
@@ -31,221 +33,126 @@ function chatTimestamps(): { userAt: string; assistantAt: string } {
   return { userAt: new Date(t).toISOString(), assistantAt: new Date(t + 1).toISOString() };
 }
 
-// Edits never auto-apply: the model proposes, the user confirms (and can
-// tweak the fields first) via PendingEditCard in ChatCapture. "new-fallback"
-// covers both "couldn't find a match" and "found candidates but wasn't
-// confident in any of them": same UI either way, prefilled as a new entry
-// instead of an update.
-export type PendingEdit =
-  | { kind: "edit"; entryId: string; currentTitle: string; fields: EntryEditFields }
-  | { kind: "new-fallback"; fields: EntryEditFields };
-
-// Spelled out because one message can produce both a single row and a whole
-// materialized series, and the two branches have to agree on a type rather
-// than have one inferred from whichever came first.
-type EntryInsertRow = {
-  user_id: string;
-  type: EntryType;
-  category: string;
-  title: string;
-  body: string | null;
-  status: string | null;
-  all_day: boolean;
-  amount: number | null;
-  currency: string | null;
-  needs_review: boolean;
-  series_id: string | null;
-  due_at: string | null;
-  occurred_at: string;
-  ends_at: string | null;
+export type SendCaptureMessageResult = {
+  userMessage: ChatMessage;
+  assistantMessage: ChatMessage;
+  threadId: string;
+  // Set when the agent paused to ask. Nothing has been written yet.
+  pending: PendingConfirmation | null;
 };
 
-export type SendCaptureMessageResult =
-  | {
-      status: "applied";
-      userMessage: ChatMessage;
-      assistantMessage: ChatMessage;
-      entries: Entry[];
-      flagged: boolean;
-    }
-  | {
-      status: "pending";
-      userMessage: ChatMessage;
-      assistantMessage: ChatMessage;
-      pending: PendingEdit;
-    };
+// Which conversation a new message belongs to.
+//
+// Reuse the newest row's thread when it is recent enough, otherwise mint one.
+// The thread id is now the conversation boundary, which is what replaced the
+// `after` timestamp the client used to carry for "restart chat": restarting is
+// just refusing to reuse.
+async function resolveThreadId(userId: string, restart: boolean): Promise<string> {
+  if (restart) return newThreadId();
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("capture_chat")
+    .select("thread_id, created_at")
+    .eq("user_id", userId)
+    .not("thread_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+
+  const latest = data?.[0];
+  if (!latest) return newThreadId();
+
+  const age = Date.now() - new Date(latest.created_at).getTime();
+  return age > CHAT_SESSION_WINDOW_MS ? newThreadId() : (latest.thread_id as string);
+}
+
+async function recordTurn(
+  userId: string,
+  threadId: string,
+  userText: string,
+  replyText: string,
+): Promise<[ChatMessage, ChatMessage]> {
+  const supabase = await createClient();
+  const { userAt, assistantAt } = chatTimestamps();
+  const { data, error } = await supabase
+    .from("capture_chat")
+    .insert([
+      {
+        user_id: userId,
+        role: "user",
+        content: userText,
+        entry_id: null,
+        thread_id: threadId,
+        created_at: userAt,
+      },
+      {
+        user_id: userId,
+        role: "assistant",
+        content: replyText,
+        entry_id: null,
+        thread_id: threadId,
+        created_at: assistantAt,
+      },
+    ])
+    .select();
+  if (error) throw new Error(error.message);
+  return data as [ChatMessage, ChatMessage];
+}
 
 export async function sendCaptureMessage(
   message: string,
-  opts: { after?: string } = {},
+  opts: { restart?: boolean } = {},
 ): Promise<SendCaptureMessageResult> {
   const text = message.trim();
   if (!text) throw new Error("message is required");
   if (text.length > MAX_MESSAGE_LENGTH) throw new Error("message is too long");
 
-  // Before the OpenRouter call below, not after: see requireAllowedUser.
+  // Before the agent call, not after: see requireAllowedUser.
   const user = await requireAllowedUser();
+  const threadId = await resolveThreadId(user.id, opts.restart === true);
+
+  const turn = await sendToAgent(user.id, text, threadId);
+
+  // A paused turn has no reply yet. The confirmation card is what the user
+  // sees, and the transcript gets the reply once they answer.
+  const replyText = turn.pending ? "waiting on you" : turn.reply;
+  const [userMessage, assistantMessage] = await recordTurn(user.id, threadId, text, replyText);
+
+  // The agent writes entries directly, so the pages that read them are stale
+  // by the time this returns.
+  revalidatePath("/");
+  revalidatePath("/entries");
+
+  return { userMessage, assistantMessage, threadId, pending: turn.pending };
+}
+
+export async function confirmPendingAction(
+  threadId: string,
+  approved: boolean,
+): Promise<{ reply: string }> {
+  const user = await requireAllowedUser();
+  const turn = await resumeAgent(user.id, threadId, approved);
+
   const supabase = await createClient();
-
-  // `after`: set when the user hit "restart chat". Excludes everything before
-  // that moment from context, same as the staleness cutoff below but drawn
-  // explicitly instead of by elapsed time.
-  let recentQuery = supabase
+  // Correct the placeholder written when the turn paused, rather than adding a
+  // second assistant bubble for one exchange.
+  const { data } = await supabase
     .from("capture_chat")
-    .select("*")
+    .select("id")
     .eq("user_id", user.id)
+    .eq("thread_id", threadId)
+    .eq("role", "assistant")
     .order("created_at", { ascending: false })
-    // Same tiebreaker as getRecentChatMessages, mirrored: newest first here,
-    // so within a shared timestamp the reply is the newer of the pair.
-    .order("role", { ascending: true })
-    .limit(CONTEXT_ROWS);
-  if (opts.after) recentQuery = recentQuery.gt("created_at", opts.after);
-  const { data: recentRows, error: recentError } = await recentQuery;
-  if (recentError) throw new Error(recentError.message);
+    .limit(1);
 
-  const recent = ((recentRows as ChatMessage[]) ?? []).slice().reverse();
-  const lastMessageAt = recent.length > 0 ? new Date(recent[recent.length - 1].created_at).getTime() : null;
-  const isStale = lastMessageAt === null || Date.now() - lastMessageAt > CHAT_SESSION_WINDOW_MS;
-  const context: ChatTurn[] = isStale ? [] : recent.map((m) => ({ role: m.role, content: m.content }));
-
-  const parsed = await parseMessage(text, context);
-
-  if (parsed.intent === "edit") {
-    const fallbackFields = (): EntryEditFields => ({
-      type: "log",
-      category: "other",
-      title: text.slice(0, 120),
-      body: null,
-      dueAt: null,
-      amount: null,
-      currency: null,
-    });
-
-    let pending: PendingEdit;
-    let reply: string;
-
-    const candidateRows = await searchEntriesForEdit(user.id, parsed.editQuery, EDIT_CANDIDATE_LIMIT);
-
-    if (candidateRows.length === 0) {
-      pending = { kind: "new-fallback", fields: fallbackFields() };
-      reply = "couldn't find an entry to edit, want me to log this as new instead?";
-    } else {
-      const candidates: EditCandidate[] = candidateRows.map((e) => ({
-        id: e.id,
-        type: e.type,
-        category: e.category,
-        title: e.title,
-        body: e.body,
-        dueAt: e.due_at,
-        amount: e.amount,
-        currency: e.currency,
-        status: e.status,
-      }));
-      const resolution = await resolveEdit(text, candidates);
-      const matched = candidateRows.find((c) => c.id === resolution.matchedId);
-
-      if (!matched) {
-        pending = { kind: "new-fallback", fields: fallbackFields() };
-        reply = "couldn't tell which one you meant, want me to log this as new instead?";
-      } else {
-        const u = resolution.updates;
-        const fields: EntryEditFields = {
-          type: u.type ?? matched.type,
-          category: u.category ?? matched.category,
-          title: u.title ?? matched.title,
-          body: u.body !== undefined ? u.body : matched.body,
-          dueAt: u.dueAt !== undefined ? u.dueAt : matched.due_at,
-          amount: u.amount !== undefined ? u.amount : matched.amount,
-          currency: u.currency !== undefined ? u.currency : matched.currency,
-          status: u.status,
-          // Carried through untouched: the edit resolver has no opinion about
-          // timing, so confirming a title change must not blank an event's
-          // start, end, or all-day flag.
-          occurredAt: matched.occurred_at,
-          endsAt: matched.ends_at,
-          allDay: matched.all_day,
-        };
-        pending = { kind: "edit", entryId: matched.id, currentTitle: matched.title, fields };
-        reply = resolution.uncertain ? `${resolution.reply} (double check this one)` : resolution.reply;
-      }
-    }
-
-    const { userAt, assistantAt } = chatTimestamps();
-    const { data: insertedRows, error: chatError } = await supabase
-      .from("capture_chat")
-      .insert([
-        { user_id: user.id, role: "user", content: text, entry_id: null, created_at: userAt },
-        { user_id: user.id, role: "assistant", content: reply, entry_id: null, created_at: assistantAt },
-      ])
-      .select();
-    if (chatError) throw new Error(chatError.message);
-    const [userMessage, assistantMessage] = insertedRows as ChatMessage[];
-
-    return { status: "pending", userMessage, assistantMessage, pending };
+  const latest = data?.[0];
+  if (latest) {
+    await supabase.from("capture_chat").update({ content: turn.reply }).eq("id", latest.id);
   }
-
-  const rows: EntryInsertRow[] = parsed.entries.flatMap((e): EntryInsertRow[] => {
-    const base = {
-      user_id: user.id,
-      type: e.type,
-      category: e.category,
-      title: e.title,
-      body: e.body,
-      status: e.type === "task" ? "open" : null,
-      all_day: e.allDay,
-      amount: e.amount,
-      currency: e.currency,
-      needs_review: e.uncertainFields.length > 0,
-    };
-    const startsAt = e.occurredAt ?? new Date().toISOString();
-
-    // A weekly rule becomes N ordinary rows sharing a series_id, rather than a
-    // rule the reader has to expand. Each occurrence is then a normal entry.
-    if (e.repeat) {
-      const seriesId: string = randomUUID();
-      return expandWeekly(startsAt, e.endsAt, e.repeat.until).map((occ) => ({
-        ...base,
-        series_id: seriesId,
-        due_at: e.type === "task" ? occ.occurredAt : null,
-        occurred_at: occ.occurredAt,
-        ends_at: occ.endsAt,
-      }));
-    }
-
-    return [
-      {
-        ...base,
-        series_id: null,
-        due_at: e.type === "task" ? e.dueAt : null,
-        occurred_at: startsAt,
-        ends_at: e.endsAt,
-      },
-    ];
-  });
-  const { data, error } = await supabase.from("entries").insert(rows).select();
-  if (error) throw new Error(error.message);
-  const entries = data as Entry[];
-  const flagged = entries.some((e) => e.needs_review);
-
-  const { userAt, assistantAt } = chatTimestamps();
-  const { data: insertedRows, error: chatError } = await supabase
-    .from("capture_chat")
-    .insert([
-      { user_id: user.id, role: "user", content: text, entry_id: null, created_at: userAt },
-      {
-        user_id: user.id,
-        role: "assistant",
-        content: parsed.reply,
-        entry_id: entries[0]?.id ?? null,
-        created_at: assistantAt,
-      },
-    ])
-    .select();
-  if (chatError) throw new Error(chatError.message);
-  const [userMessage, assistantMessage] = insertedRows as ChatMessage[];
 
   revalidatePath("/");
   revalidatePath("/entries");
 
-  return { status: "applied", userMessage, assistantMessage, entries, flagged };
+  return { reply: turn.reply };
 }
